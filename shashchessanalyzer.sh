@@ -1,0 +1,1 @@
+java -jar shashchessanalyzer.jar shashchessanalyzer.properties

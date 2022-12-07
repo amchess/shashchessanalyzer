@@ -1,5 +1,8 @@
 package com.alphachess.shashchessanalyzer;
 
+import static java.util.function.Function.identity;
+import static net.andreinc.neatchess.client.breaks.Break.breakOn;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -45,23 +48,23 @@ public class ShashChessAnalyzer {
 	private long strongestAverageTimeSecondsForMove;
 	private long timeoutSeconds;
 	private long timeoutMS;
-    private String fen;
-    private int multiPV;
-    private String fullDepthThreads;
-    private String openingVariety;
-    private String persistedLearning;
-    private String readOnlyLearning;
-    private String mcts;
-    private String mCTSThreads;
-    private String engineName;
+	private String fen;
+	private int multiPV;
+	private String fullDepthThreads;
+	private String openingVariety;
+	private String persistedLearning;
+	private String readOnlyLearning;
+	private String mcts;
+	private String mCTSThreads;
+	private String engineName;
 
 	Logger logger = Logger.getLogger(ShashChessAnalyzer.class.getName());
 
 	public ShashChessAnalyzer(String[] args) {
-		shashChessAnalyzerProperties=getShashChessAnalyzerProperties(args);
+		shashChessAnalyzerProperties = getShashChessAnalyzerProperties(args);
 		setInputParameters();
-		setTimeoutMS(timeoutSeconds*1000);
-		uci=new UCI(timeoutMS);
+		setTimeoutMS(timeoutSeconds * 1000);
+		uci = new UCI(timeoutMS);
 	}
 
 	private void setInputParameters() {
@@ -83,10 +86,11 @@ public class ShashChessAnalyzer {
 		setMCTSThreads(shashChessAnalyzerProperties.getProperty("mCTSThreads"));
 		setEngineName(shashChessAnalyzerProperties.getProperty("engineName"));
 	}
+
 	public long getStrongestAverageTimeSeconds() {
 		return (long) (getHashSizeMB() * 512 / (getThreadsNumber() * getCpuMhz()));
 	}
-	
+
 	private Properties getShashChessAnalyzerProperties(String[] args) {
 		String shashChessAnalyzerProperties = args[0];
 		Properties properties = new Properties();
@@ -98,44 +102,51 @@ public class ShashChessAnalyzer {
 
 		} catch (FileNotFoundException e) {
 			logger.info(e.getMessage());
+			System.exit(0);
 		} catch (IOException e) {
 			logger.info(e.getMessage());
+			System.exit(0);
 		}
 		return properties;
 	}
 
 	public static void main(String[] args) {
+
 		ShashChessAnalyzer shashChessAnalyzer = new ShashChessAnalyzer(args);
-		shashChessAnalyzer.startShashChess();
-		shashChessAnalyzer.setInitialUciOptions();
-		//shashChessAnalyzer.retrieveShashChessInfo();
-		shashChessAnalyzer.analyzePosition(1);
-		shashChessAnalyzer.closeShashChess();
+		try {
+			shashChessAnalyzer.startShashChess();
+			shashChessAnalyzer.setInitialUciOptions();
+			// shashChessAnalyzer.retrieveShashChessInfo();
+			shashChessAnalyzer.analyzePosition(1);
+			shashChessAnalyzer.closeShashChess();
+		} catch (Exception e) {
+			shashChessAnalyzer.closeShashChess();
+			System.out.println("End computation for timeout");
+			System.exit(0);
+		}
 	}
 
 	private void analyzePosition(int timeMultiplier) {
-		long currentAverageTimeSecondsForMove = strongestAverageTimeSecondsForMove*1000*timeMultiplier*multiPV;
-		System.out.println("Average time per move in seconds: "+currentAverageTimeSecondsForMove/1000);
-		uci.setOption("MultiPV", Integer.toString(multiPV));
+		long currentAverageTimeSecondsForMove = strongestAverageTimeSecondsForMove * 1000 * timeMultiplier * multiPV;
+		System.out.println("Average time per move in seconds: " + currentAverageTimeSecondsForMove / 1000);
 		uci.uciNewGame();
 		uci.positionFen(fen);
-		UCIResponse<Analysis> response = uci.analysis((long)currentAverageTimeSecondsForMove);
-		Analysis analysis = response.getResultOrThrow();
+		UCIResponse<Analysis> response = uci.analysis((long) currentAverageTimeSecondsForMove);
+		Analysis analysis;
+
+		analysis = response.getResultOrThrow();
 		Move bestMove = analysis.getBestMove();
 		System.out.println("Best move: " + bestMove);
-		int score=((Double)(bestMove.getStrength().getScore()*100)).intValue();
-		System.out.println("Score: " + score+"cp");
-		String positionType=getPositionType(score);
+		int score = ((Double) (bestMove.getStrength().getScore() * 100)).intValue();
+		System.out.println("Score: " + score + "cp");
+		String positionType = getPositionType(score);
 		System.out.println("Position type: " + positionType);
 		// Possible best moves
-		Map<Integer,Move> moves = analysis.getAllMoves();
+		Map<Integer, Move> moves = analysis.getAllMoves();
 		moves.forEach((idx, move) -> {
-		    System.out.println("\t" + move);
+			System.out.println("\t" + move);
 		});
-		closeShashChess();
 		System.out.println("Restart the analysis based on Shashin theory");
-		startShashChess();
-		setInitialUciOptions();
 		setShashinUciOptions(positionType);
 		analyzePosition(++timeMultiplier);
 		closeShashChess();
@@ -146,74 +157,72 @@ public class ShashChessAnalyzer {
 		case HIGH_PETROSIAN:
 		case MEDIUM_PETROSIAN:
 		case LOW_PETROSIAN:
-			uci.setOption("Petrosian", "true",timeoutMS).getResultOrThrow();
+			uci.setOption("Petrosian", "true", timeoutMS).getResultOrThrow();
 		case CAOS_CAPABLANCA_PETROSIAN:
-			uci.setOption("Petrosian", "true",timeoutMS).getResultOrThrow();
-			uci.setOption("Capablanca", "true",timeoutMS).getResultOrThrow();
+			uci.setOption("Petrosian", "true", timeoutMS).getResultOrThrow();
+			uci.setOption("Capablanca", "true", timeoutMS).getResultOrThrow();
 		case CAPABLANCA:
-			uci.setOption("Capablanca", "true",timeoutMS).getResultOrThrow();
+			uci.setOption("Capablanca", "true", timeoutMS).getResultOrThrow();
 		case CAOS_TAL_CAPABLANCA:
-			uci.setOption("Capablanca", "true",timeoutMS).getResultOrThrow();
-			uci.setOption("Tal", "true",timeoutMS).getResultOrThrow();		
+			uci.setOption("Capablanca", "true", timeoutMS).getResultOrThrow();
+			uci.setOption("Tal", "true", timeoutMS).getResultOrThrow();
 		case HIGH_TAL:
 		case MEDIUM_TAL:
 		case LOW_TAL:
-			uci.setOption("Tal", "true",timeoutMS).getResultOrThrow();		
+			uci.setOption("Tal", "true", timeoutMS).getResultOrThrow();
 		}
-		
+
 	}
 
 	private String getPositionType(int score) {
-        if (score < -HIGH_THRESHOLD)
-        {
-            return HIGH_PETROSIAN;
-        }
-        if ((score >= -HIGH_THRESHOLD) && (score < -MEDIUM_THRESHOLD))
-        {
-            return MEDIUM_PETROSIAN;
-        }
-        if ((score >= -MEDIUM_THRESHOLD) && (score < -LOW_THRESHOLD))
-        {
-            return LOW_PETROSIAN;
-        }
-        if ((score >= -LOW_THRESHOLD) && (score < -QUISCENT_THRESHOLD))
-        {
-            return CAOS_CAPABLANCA_PETROSIAN;
-        }
-        if ((score > -QUISCENT_THRESHOLD) && (score < QUISCENT_THRESHOLD))
-        {
-            return CAPABLANCA;
-        }
-        if ((score >= QUISCENT_THRESHOLD) && (score <= LOW_THRESHOLD))
-        {
-            return CAOS_TAL_CAPABLANCA;
-        }
-        if ((score > LOW_THRESHOLD) && (score <= MEDIUM_THRESHOLD))
-        {
-            return LOW_TAL;
-        }        
-        if ((score > MEDIUM_THRESHOLD) && (score <= HIGH_THRESHOLD))
-        {
-            return MEDIUM_TAL;
-        }
-        if (score > HIGH_THRESHOLD)
-        {
-            return HIGH_TAL;
-        }
-        return CAOS_TAL_CAPABLANCA_PETROSIAN;
+		if (score < -HIGH_THRESHOLD) {
+			return HIGH_PETROSIAN;
+		}
+		if ((score >= -HIGH_THRESHOLD) && (score < -MEDIUM_THRESHOLD)) {
+			return MEDIUM_PETROSIAN;
+		}
+		if ((score >= -MEDIUM_THRESHOLD) && (score < -LOW_THRESHOLD)) {
+			return LOW_PETROSIAN;
+		}
+		if ((score >= -LOW_THRESHOLD) && (score < -QUISCENT_THRESHOLD)) {
+			return CAOS_CAPABLANCA_PETROSIAN;
+		}
+		if ((score > -QUISCENT_THRESHOLD) && (score < QUISCENT_THRESHOLD)) {
+			return CAPABLANCA;
+		}
+		if ((score >= QUISCENT_THRESHOLD) && (score <= LOW_THRESHOLD)) {
+			return CAOS_TAL_CAPABLANCA;
+		}
+		if ((score > LOW_THRESHOLD) && (score <= MEDIUM_THRESHOLD)) {
+			return LOW_TAL;
+		}
+		if ((score > MEDIUM_THRESHOLD) && (score <= HIGH_THRESHOLD)) {
+			return MEDIUM_TAL;
+		}
+		if (score > HIGH_THRESHOLD) {
+			return HIGH_TAL;
+		}
+		return CAOS_TAL_CAPABLANCA_PETROSIAN;
 	}
 
 	private void setInitialUciOptions() {
-		uci.setOption("Threads", Integer.toString(threadsNumber),timeoutMS).getResultOrThrow();
-		uci.setOption("Hash", Integer.toString(hashSizeMB),timeoutMS).getResultOrThrow();
-		uci.setOption("SyzygyPath", syzygyPath,timeoutMS).getResultOrThrow();
-		uci.setOption("SyzygyProbeDepth", syzygyProbeDepth,timeoutMS).getResultOrThrow();
-		uci.setOption("fullDepthThreads", fullDepthThreads,timeoutMS).getResultOrThrow();
-		uci.setOption("openingVariety", openingVariety,timeoutMS).getResultOrThrow();
-		uci.setOption("persistedLearning", persistedLearning,timeoutMS).getResultOrThrow();
-		uci.setOption("readOnlyLearning", readOnlyLearning,timeoutMS).getResultOrThrow();
-		uci.setOption("mcts", mcts,timeoutMS).getResultOrThrow();
-		uci.setOption("mCTSThreads", mCTSThreads,timeoutMS).getResultOrThrow();
+		try {
+			uci.setOption("Threads", Integer.toString(threadsNumber), timeoutMS).getResultOrThrow();
+			uci.setOption("Hash", Integer.toString(hashSizeMB), timeoutMS).getResultOrThrow();
+			uci.setOption("SyzygyPath", syzygyPath, timeoutMS).getResultOrThrow();
+			uci.setOption("SyzygyProbeDepth", syzygyProbeDepth, timeoutMS).getResultOrThrow();
+			uci.setOption("Full depth threads", fullDepthThreads, timeoutMS).getResultOrThrow();
+			uci.setOption("Opening variety", openingVariety, timeoutMS).getResultOrThrow();
+			uci.setOption("Persisted learning", persistedLearning, timeoutMS).getResultOrThrow();
+			uci.setOption("Read only learning", readOnlyLearning, timeoutMS).getResultOrThrow();
+			uci.setOption("MCTS", mcts, timeoutMS).getResultOrThrow();
+			uci.setOption("MCTSThreads", mCTSThreads, timeoutMS).getResultOrThrow();
+			uci.setOption("MultiPV", Integer.toString(multiPV));
+		} catch (Exception e) {
+			closeShashChess();
+			System.out.println("Impossible to setup uci options");
+			System.exit(0);
+		}
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -237,13 +246,15 @@ public class ShashChessAnalyzer {
 
 	private void closeShashChess() {
 		uci.close();
-
+		System.out.println("Engine closed");
+		System.exit(0);
 	}
 
 	private void startShashChess() {
-		String engineNameWithExtension=engineName+(System.getProperty("os.name").contains("Windows")?".exe":"");
+		String engineNameWithExtension = engineName + (System.getProperty("os.name").contains("Windows") ? ".exe" : "");
 		uci.start(engineNameWithExtension);
 	}
+
 	public UCI getUci() {
 		return uci;
 	}
@@ -335,11 +346,11 @@ public class ShashChessAnalyzer {
 	public void setStrongestAverageTimeSecondsForMove(long strongestAverageTimeSecondsForMove) {
 		this.strongestAverageTimeSecondsForMove = strongestAverageTimeSecondsForMove;
 	}
-	
+
 	public String getFen() {
 		return fen;
 	}
-	
+
 	public long getTimeoutSeconds() {
 		return timeoutSeconds;
 	}
@@ -352,7 +363,7 @@ public class ShashChessAnalyzer {
 		this.fen = fen;
 	}
 
-    public String getFullDepthThreads() {
+	public String getFullDepthThreads() {
 		return fullDepthThreads;
 	}
 
@@ -406,5 +417,5 @@ public class ShashChessAnalyzer {
 
 	public void setEngineName(String engineName) {
 		this.engineName = engineName;
-	}	
+	}
 }
