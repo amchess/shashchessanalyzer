@@ -39,7 +39,6 @@ public class ShashChessAnalyzer {
 	private static final String HIGH_PETROSIAN = "High Petrosian";
 	UCI uci = null;
 	private Properties shashChessAnalyzerProperties;
-	private String uciEngineFullPath;
 	private int threadsNumber;
 	private int hashSizeMB;
 	private int cpuMhz;
@@ -76,7 +75,6 @@ public class ShashChessAnalyzer {
 		setSyzygyProbeDepth(shashChessAnalyzerProperties.getProperty("syzygyProbeDepth"));
 		setStrongestAverageTimeSecondsForMove(getStrongestAverageTimeSeconds());
 		setFen(shashChessAnalyzerProperties.getProperty("fen"));
-		setUciEngineFullPath(shashChessAnalyzerProperties.getProperty("engineFullPath"));
 		setMultiPV(Integer.parseInt(shashChessAnalyzerProperties.getProperty("multiPV")));
 		setFullDepthThreads(shashChessAnalyzerProperties.getProperty("fullDepthThreads"));
 		setOpeningVariety(shashChessAnalyzerProperties.getProperty("openingVariety"));
@@ -307,10 +305,6 @@ public class ShashChessAnalyzer {
 		return shashChessAnalyzerProperties;
 	}
 
-	public String getUciEngineFullPath() {
-		return uciEngineFullPath;
-	}
-
 	public long getTimeoutMS() {
 		return timeoutMS;
 	}
@@ -325,10 +319,6 @@ public class ShashChessAnalyzer {
 
 	public void setMultiPV(int multiPV) {
 		this.multiPV = multiPV;
-	}
-
-	public void setUciEngineFullPath(String uciEngineFullPath) {
-		this.uciEngineFullPath = uciEngineFullPath;
 	}
 
 	public int getThreadsNumber() {
