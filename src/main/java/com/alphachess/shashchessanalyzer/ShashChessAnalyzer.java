@@ -1,5 +1,6 @@
 package com.alphachess.shashchessanalyzer;
 
+import static java.lang.String.format;
 import static java.util.function.Function.identity;
 import static net.andreinc.neatchess.client.breaks.Break.breakOn;
 
@@ -56,6 +57,7 @@ public class ShashChessAnalyzer {
 	private String mcts;
 	private String mCTSThreads;
 	private String engineName;
+	private String searchMoves;
 
 	Logger logger = Logger.getLogger(ShashChessAnalyzer.class.getName());
 
@@ -83,6 +85,7 @@ public class ShashChessAnalyzer {
 		setMcts(shashChessAnalyzerProperties.getProperty("mcts"));
 		setMCTSThreads(shashChessAnalyzerProperties.getProperty("mCTSThreads"));
 		setEngineName(shashChessAnalyzerProperties.getProperty("engineName"));
+		setSearchMoves(shashChessAnalyzerProperties.getProperty("searchMoves"));
 	}
 
 	public long getStrongestAverageTimeSeconds() {
@@ -114,7 +117,7 @@ public class ShashChessAnalyzer {
 		try {
 			shashChessAnalyzer.startShashChess();
 			shashChessAnalyzer.setInitialUciOptions();
-			// shashChessAnalyzer.retrieveShashChessInfo();
+			shashChessAnalyzer.retrieveShashChessInfo();
 			shashChessAnalyzer.analyzePosition(1);
 			shashChessAnalyzer.closeShashChess();
 		} catch (Exception e) {
@@ -126,23 +129,22 @@ public class ShashChessAnalyzer {
 
 	private void analyzePosition(int timeMultiplier) {
 		long currentAverageTimeSecondsForMove = strongestAverageTimeSecondsForMove * 1000 * timeMultiplier * multiPV;
-		System.out.println("Average time per move in seconds: " + currentAverageTimeSecondsForMove / 1000);
+		System.out.println(String.join("", "Average time per move in seconds: ",Long.toString(currentAverageTimeSecondsForMove / 1000)));
 		uci.uciNewGame();
 		uci.positionFen(fen);
-		UCIResponse<Analysis> response = uci.analysis((long) currentAverageTimeSecondsForMove);
-		Analysis analysis;
-
-		analysis = response.getResultOrThrow();
+		String goCommand=(searchMoves!=null && !searchMoves.isEmpty())? String.join("","go movetime %d ","searchmoves ", searchMoves):"go movetime %d";
+		UCIResponse<Analysis> response = uci.command(format(goCommand, (long) currentAverageTimeSecondsForMove), UCI.analysis::process, breakOn("bestmove"), uci.getDefaultTimeout());
+		Analysis analysis=response.getResultOrThrow();
 		Move bestMove = analysis.getBestMove();
-		System.out.println("Best move: " + bestMove);
+		System.out.println(String.join("","Best move: ",bestMove.toString()));
 		int score = ((Double) (bestMove.getStrength().getScore() * 100)).intValue();
-		System.out.println("Score: " + score + "cp");
+		System.out.println(String.join("Score: ",Integer.toString(score),"cp"));
 		String positionType = getPositionType(score);
-		System.out.println("Position type: " + positionType);
+		System.out.println(String.join("","Position type: ",positionType));
 		// Possible best moves
 		Map<Integer, Move> moves = analysis.getAllMoves();
 		moves.forEach((idx, move) -> {
-			System.out.println("\t" + move);
+			System.out.println(String.join("", "\t" + move));
 		});
 		System.out.println("Restart the analysis based on Shashin theory");
 		setShashinUciOptions(positionType);
@@ -230,14 +232,14 @@ public class ShashChessAnalyzer {
 
 			// Engine name
 			EngineInfo engineInfo = response.getResult();
-			System.out.println("Engine name:" + engineInfo.getName());
+			System.out.println(String.join("","Engine name:" + engineInfo.getName()));
 
 			// Supported engine options
 			System.out.println("Supported engine options:");
 			Map<String, EngineOption> engineOptions = engineInfo.getOptions();
 			engineOptions.forEach((key, value) -> {
-				System.out.println("\t" + key);
-				System.out.println("\t\t" + value);
+				System.out.println(String.join("","\t",key));
+				System.out.println(String.join("","\t\t",value.toString()));
 			});
 		}
 	}
@@ -249,7 +251,7 @@ public class ShashChessAnalyzer {
 	}
 
 	private void startShashChess() {
-		String engineNameWithExtension = engineName + (System.getProperty("os.name").contains("Windows") ? ".exe" : "");
+		String engineNameWithExtension = String.join("", engineName,(System.getProperty("os.name").contains("Windows") ? ".exe" : ""));
 		uci.start(engineNameWithExtension);
 	}
 
@@ -407,5 +409,13 @@ public class ShashChessAnalyzer {
 
 	public void setEngineName(String engineName) {
 		this.engineName = engineName;
+	}
+
+	public String getSearchMoves() {
+		return searchMoves;
+	}
+
+	public void setSearchMoves(String searchMoves) {
+		this.searchMoves = searchMoves;
 	}
 }
