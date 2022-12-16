@@ -1,0 +1,1 @@
+java -jar shashchessplayer.jar shashchessplayer.properties
