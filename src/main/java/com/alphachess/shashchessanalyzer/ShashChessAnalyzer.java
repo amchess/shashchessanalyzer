@@ -1,13 +1,17 @@
 package com.alphachess.shashchessanalyzer;
 
 import static java.lang.String.format;
-import static java.util.function.Function.identity;
 import static net.andreinc.neatchess.client.breaks.Break.breakOn;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
 import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Logger;
@@ -24,20 +28,26 @@ import net.andreinc.neatchess.client.model.option.EngineOption;
  *
  */
 public class ShashChessAnalyzer {
-	private static final int QUISCENT_THRESHOLD = 15;
-	private static final int LOW_THRESHOLD = 35;
-	private static final int MEDIUM_THRESHOLD = 70;
-	private static final int HIGH_THRESHOLD = 140;
-	private static final String CAOS_TAL_CAPABLANCA_PETROSIAN = "Caos Tal-Capablanca-Petrosian";
-	private static final String HIGH_TAL = "High Tal";
-	private static final String MEDIUM_TAL = "Medium Tal";
-	private static final String LOW_TAL = "Low Tal";
-	private static final String CAOS_TAL_CAPABLANCA = "Caos Tal-Capablanca";
-	private static final String CAPABLANCA = "Capablanca";
-	private static final String CAOS_CAPABLANCA_PETROSIAN = "Caos Capablanca-Petrosian";
-	private static final String LOW_PETROSIAN = "Low Petrosian";
-	private static final String MEDIUM_PETROSIAN = "Medium Petrosian";
+	private static final int CAPABLANCA_THRESHOLD = 9;
+	private static final int LOW_THRESHOLD = 20;
+	private static final int LOW_MIDDLE_THRESHOLD = 41;
+	private static final int MIDDLE_THRESHOLD = 59;
+	private static final int HIGH_MIDDLE_THRESHOLD = 93;
+	private static final int HIGH_THRESHOLD = 160;
 	private static final String HIGH_PETROSIAN = "High Petrosian";
+	private static final String HIGH_MIDDLE_PETROSIAN = "Middle High Petrosian";
+	private static final String MIDDLE_PETROSIAN = "Middle Petrosian";
+	private static final String MIDDLE_LOW_PETROSIAN = "Middle Low Petrosian";
+	private static final String LOW_PETROSIAN = "Low Petrosian";
+	private static final String CAOS_PETROSIAN_CAPABLANCA = "Caos Petrosian-Capablanca";
+	private static final String CAPABLANCA = "Capablanca";
+	private static final String CAOS_TAL_CAPABLANCA = "Caos Capablanca-Tal";
+	private static final String LOW_TAL = "Low Tal";
+	private static final String LOW_MIDDLE_TAL = "Low Middle Tal";
+	private static final String MIDDLE_TAL = "Middle Tal";
+	private static final String MIDDLE_HIGH_TAL = "Middle High Tal";
+	private static final String HIGH_TAL = "High Tal";
+	private static final String CAOS_TAL_CAPABLANCA_PETROSIAN = "Caos Tal-Capablanca-Petrosian";
 	UCI uci = null;
 	private Properties shashChessAnalyzerProperties;
 	private int threadsNumber;
@@ -58,6 +68,7 @@ public class ShashChessAnalyzer {
 	private String mCTSThreads;
 	private String engineName;
 	private String searchMoves;
+	private String showEngineInfos;
 
 	Logger logger = Logger.getLogger(ShashChessAnalyzer.class.getName());
 
@@ -86,6 +97,7 @@ public class ShashChessAnalyzer {
 		setMCTSThreads(shashChessAnalyzerProperties.getProperty("mCTSThreads"));
 		setEngineName(shashChessAnalyzerProperties.getProperty("engineName"));
 		setSearchMoves(shashChessAnalyzerProperties.getProperty("searchMoves"));
+		setShowEngineInfos(shashChessAnalyzerProperties.getProperty("showEngineInfos"));
 	}
 
 	public long getStrongestAverageTimeSeconds() {
@@ -117,7 +129,11 @@ public class ShashChessAnalyzer {
 		try {
 			shashChessAnalyzer.startShashChess();
 			shashChessAnalyzer.setInitialUciOptions();
-			shashChessAnalyzer.retrieveShashChessInfo();
+			String showEngineInfos = shashChessAnalyzer.getShowEngineInfos();
+			if ((showEngineInfos != null) && (!showEngineInfos.isEmpty())
+					&& (showEngineInfos.equalsIgnoreCase("yes"))) {
+				shashChessAnalyzer.retrieveShashChessInfo();
+			}
 			shashChessAnalyzer.analyzePosition(1);
 			shashChessAnalyzer.closeShashChess();
 		} catch (Exception e) {
@@ -129,24 +145,39 @@ public class ShashChessAnalyzer {
 
 	private void analyzePosition(int timeMultiplier) {
 		long currentAverageTimeSecondsForMove = strongestAverageTimeSecondsForMove * 1000 * timeMultiplier * multiPV;
-		System.out.println(String.join("", "Average time per move in seconds: ",Long.toString(currentAverageTimeSecondsForMove / 1000)));
+		System.out.println(String.join("", "Average time for all moves in seconds: ",
+				Long.toString(currentAverageTimeSecondsForMove / 1000)));
 		uci.uciNewGame();
 		uci.positionFen(fen);
-		String goCommand=(searchMoves!=null && !searchMoves.isEmpty())? String.join("","go movetime %d ","searchmoves ", searchMoves):"go movetime %d";
-		UCIResponse<Analysis> response = uci.command(format(goCommand, (long) currentAverageTimeSecondsForMove), UCI.analysis::process, breakOn("bestmove"), uci.getDefaultTimeout());
-		Analysis analysis=response.getResultOrThrow();
-		Move bestMove = analysis.getBestMove();
-		System.out.println(String.join("","Best move: ",bestMove.toString()));
-		int score = ((Double) (bestMove.getStrength().getScore() * 100)).intValue();
-		System.out.println(String.join("Score: ",Integer.toString(score),"cp"));
-		String positionType = getPositionType(score);
-		System.out.println(String.join("","Position type: ",positionType));
+		String goCommand = (searchMoves != null && !searchMoves.isEmpty())
+				? String.join("", "go movetime %d ", "searchmoves ", searchMoves)
+				: "go movetime %d";
+		UCIResponse<Analysis> response = uci.command(format(goCommand, (long) currentAverageTimeSecondsForMove),
+				UCI.analysis::process, breakOn("bestmove"), uci.getDefaultTimeout());
+		Analysis analysis = response.getResultOrThrow();
+		/*
+		 * Move bestMove = analysis.getBestMove(); System.out.println(String.join("",
+		 * "Best move: ", bestMove.toString())); int score = ((Double)
+		 * (bestMove.getStrength().getScore() * 100)).intValue();
+		 * System.out.println(String.join("", "Score: ", Integer.toString(score),
+		 * "cp")); String positionType = getPositionType(score);
+		 * System.out.println(String.join("", "Position type: ", positionType));
+		 */
 		// Possible best moves
-		Map<Integer, Move> moves = analysis.getAllMoves();
+		Map<Integer, Move> moves = analysis.getAllMoves(); 
+		Move bestMove = moves.get(1);
+		System.out.println(String.join("", "Best move: ", bestMove.toString()));
+		int score = ((Double) (bestMove.getStrength().getScore() * 100)).intValue();
+		System.out.println(String.join("", "Score: ", Integer.toString(score), "cp"));
+		String positionType = getPositionType(score);
+		System.out.println(String.join("", "Position type: ", positionType));        
 		moves.forEach((idx, move) -> {
 			System.out.println(String.join("", "\t" + move));
 		});
-		System.out.println("Restart the analysis based on Shashin theory");
+		SimpleDateFormat formatter = new SimpleDateFormat("HH:mm");
+		Date date = new Date();
+		System.out.println(formatter.format(date));
+		System.out.println(String.join("", "Restart the analysis based on Shashin theory - ", formatter.format(date)));
 		setShashinUciOptions(positionType);
 		analyzePosition(++timeMultiplier);
 		closeShashChess();
@@ -155,51 +186,104 @@ public class ShashChessAnalyzer {
 	private void setShashinUciOptions(String positionType) {
 		switch (positionType) {
 		case HIGH_PETROSIAN:
-		case MEDIUM_PETROSIAN:
+			uci.setOption(HIGH_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			break;
+		case HIGH_MIDDLE_PETROSIAN:
+			uci.setOption(HIGH_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(MIDDLE_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			break;
+		case MIDDLE_PETROSIAN:
+			uci.setOption(MIDDLE_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			break;
+		case MIDDLE_LOW_PETROSIAN:
+			uci.setOption(MIDDLE_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(LOW_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			break;
 		case LOW_PETROSIAN:
-			uci.setOption("Petrosian", "true", timeoutMS).getResultOrThrow();
-		case CAOS_CAPABLANCA_PETROSIAN:
-			uci.setOption("Petrosian", "true", timeoutMS).getResultOrThrow();
-			uci.setOption("Capablanca", "true", timeoutMS).getResultOrThrow();
+			uci.setOption(LOW_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			break;
+		case CAOS_PETROSIAN_CAPABLANCA:
+			uci.setOption(LOW_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(CAPABLANCA, "true", timeoutMS).getResultOrThrow();
+			break;
 		case CAPABLANCA:
-			uci.setOption("Capablanca", "true", timeoutMS).getResultOrThrow();
+			uci.setOption(CAPABLANCA, "true", timeoutMS).getResultOrThrow();
+			break;
 		case CAOS_TAL_CAPABLANCA:
-			uci.setOption("Capablanca", "true", timeoutMS).getResultOrThrow();
-			uci.setOption("Tal", "true", timeoutMS).getResultOrThrow();
-		case HIGH_TAL:
-		case MEDIUM_TAL:
+			uci.setOption(CAPABLANCA, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(LOW_TAL, "true", timeoutMS).getResultOrThrow();
+			break;
 		case LOW_TAL:
-			uci.setOption("Tal", "true", timeoutMS).getResultOrThrow();
+			uci.setOption(LOW_TAL, "true", timeoutMS).getResultOrThrow();
+			break;
+		case LOW_MIDDLE_TAL:
+			uci.setOption(LOW_TAL, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(MIDDLE_TAL, "true", timeoutMS).getResultOrThrow();
+			break;
+		case MIDDLE_TAL:
+			uci.setOption(MIDDLE_TAL, "true", timeoutMS).getResultOrThrow();
+			break;
+		case MIDDLE_HIGH_TAL:
+			uci.setOption(MIDDLE_TAL, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(HIGH_TAL, "true", timeoutMS).getResultOrThrow();
+			break;
+		case HIGH_TAL:
+			uci.setOption(HIGH_TAL, "true", timeoutMS).getResultOrThrow();
+			break;
+		case CAOS_TAL_CAPABLANCA_PETROSIAN:
+			uci.setOption(HIGH_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(MIDDLE_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(LOW_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(CAPABLANCA, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(LOW_TAL, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(LOW_MIDDLE_TAL, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(MIDDLE_TAL, "true", timeoutMS).getResultOrThrow();
+			uci.setOption(HIGH_TAL, "true", timeoutMS).getResultOrThrow();
+			break;
+		default:
+			break;
 		}
 
 	}
 
 	private String getPositionType(int score) {
-		if (score < -HIGH_THRESHOLD) {
+		if (score <= -HIGH_THRESHOLD) {
 			return HIGH_PETROSIAN;
 		}
-		if ((score >= -HIGH_THRESHOLD) && (score < -MEDIUM_THRESHOLD)) {
-			return MEDIUM_PETROSIAN;
+		if ((score > -HIGH_THRESHOLD) && (score <= -HIGH_MIDDLE_THRESHOLD)) {
+			return HIGH_MIDDLE_PETROSIAN;
 		}
-		if ((score >= -MEDIUM_THRESHOLD) && (score < -LOW_THRESHOLD)) {
+		if ((score > -HIGH_MIDDLE_THRESHOLD) && (score <= -MIDDLE_THRESHOLD)) {
+			return MIDDLE_PETROSIAN;
+		}
+		if ((score > -MIDDLE_THRESHOLD) && (score <= -LOW_MIDDLE_THRESHOLD)) {
+			return MIDDLE_LOW_PETROSIAN;
+		}
+		if ((score > -LOW_MIDDLE_THRESHOLD) && (score <= -LOW_THRESHOLD)) {
 			return LOW_PETROSIAN;
 		}
-		if ((score >= -LOW_THRESHOLD) && (score < -QUISCENT_THRESHOLD)) {
-			return CAOS_CAPABLANCA_PETROSIAN;
+		if ((score > -LOW_THRESHOLD) && (score <= -CAPABLANCA_THRESHOLD)) {
+			return CAOS_PETROSIAN_CAPABLANCA;
 		}
-		if ((score > -QUISCENT_THRESHOLD) && (score < QUISCENT_THRESHOLD)) {
+		if ((score > -CAPABLANCA_THRESHOLD) && (score < CAPABLANCA_THRESHOLD)) {
 			return CAPABLANCA;
 		}
-		if ((score >= QUISCENT_THRESHOLD) && (score <= LOW_THRESHOLD)) {
+		if ((score >= CAPABLANCA_THRESHOLD) && (score < LOW_THRESHOLD)) {
 			return CAOS_TAL_CAPABLANCA;
 		}
-		if ((score > LOW_THRESHOLD) && (score <= MEDIUM_THRESHOLD)) {
+		if ((score >= LOW_THRESHOLD) && (score < LOW_MIDDLE_THRESHOLD)) {
 			return LOW_TAL;
 		}
-		if ((score > MEDIUM_THRESHOLD) && (score <= HIGH_THRESHOLD)) {
-			return MEDIUM_TAL;
+		if ((score >= LOW_MIDDLE_THRESHOLD) && (score < MIDDLE_THRESHOLD)) {
+			return LOW_MIDDLE_TAL;
 		}
-		if (score > HIGH_THRESHOLD) {
+		if ((score >= MIDDLE_THRESHOLD) && (score < HIGH_MIDDLE_THRESHOLD)) {
+			return MIDDLE_TAL;
+		}
+		if ((score >= HIGH_MIDDLE_THRESHOLD) && (score < HIGH_THRESHOLD)) {
+			return MIDDLE_HIGH_TAL;
+		}
+		if (score >= HIGH_THRESHOLD) {
 			return HIGH_TAL;
 		}
 		return CAOS_TAL_CAPABLANCA_PETROSIAN;
@@ -232,14 +316,14 @@ public class ShashChessAnalyzer {
 
 			// Engine name
 			EngineInfo engineInfo = response.getResult();
-			System.out.println(String.join("","Engine name:" + engineInfo.getName()));
+			System.out.println(String.join("", "Engine name:" + engineInfo.getName()));
 
 			// Supported engine options
 			System.out.println("Supported engine options:");
 			Map<String, EngineOption> engineOptions = engineInfo.getOptions();
 			engineOptions.forEach((key, value) -> {
-				System.out.println(String.join("","\t",key));
-				System.out.println(String.join("","\t\t",value.toString()));
+				System.out.println(String.join("", "\t", key));
+				System.out.println(String.join("", "\t\t", value.toString()));
 			});
 		}
 	}
@@ -251,7 +335,8 @@ public class ShashChessAnalyzer {
 	}
 
 	private void startShashChess() {
-		String engineNameWithExtension = String.join("", engineName,(System.getProperty("os.name").contains("Windows") ? ".exe" : ""));
+		String engineNameWithExtension = String.join("", engineName,
+				(System.getProperty("os.name").contains("Windows") ? ".exe" : ""));
 		uci.start(engineNameWithExtension);
 	}
 
@@ -417,5 +502,13 @@ public class ShashChessAnalyzer {
 
 	public void setSearchMoves(String searchMoves) {
 		this.searchMoves = searchMoves;
+	}
+
+	public String getShowEngineInfos() {
+		return showEngineInfos;
+	}
+
+	public void setShowEngineInfos(String showEngineInfos) {
+		this.showEngineInfos = showEngineInfos;
 	}
 }
