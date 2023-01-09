@@ -199,6 +199,9 @@ public class ShashChessPlayer {
 			pgnReader = getPGNReader();
 			ChessGame currentInputGame = getCurrentInputGame();
 			while (currentInputGame != null) {
+				System.out.println(currentInputGame.getGameInfo());
+				System.out.println(currentInputGame.getHistory());
+				System.out.println("");
 				setCurrentInputChessGame(currentInputGame);
 				currentInputGameNumber++;
 				System.out.println("Current input game: " + currentInputGameNumber);
@@ -256,16 +259,12 @@ public class ShashChessPlayer {
 		if (iterationFen != null && !iterationFen.isEmpty()) {
 			ChessBoard iterationChessBoard = (ChessBoard) getFen().stringToBoard(iterationFen);
 			if (iterationChessBoard != null) {
-				System.out.println(currentChessGame.getGameInfo());
- 			    if(inputGamesPgn==null)
+				if(inputGamesPgn==null)
 				{
 					System.out.println("");
 					System.out.println(iterationChessBoard.toString());
+					System.out.println("");
 				}
-				else {
-					System.out.println(currentChessGame.getHistory());
-				}
- 			    System.out.println("");
  			    System.out.println("Starting self play");
 				History currentHistory = getCurrentHistory(iterationChessBoard);
 				if (currentHistory != null) {
