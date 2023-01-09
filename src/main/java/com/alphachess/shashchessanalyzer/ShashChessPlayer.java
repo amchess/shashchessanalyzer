@@ -3,9 +3,11 @@ package com.alphachess.shashchessanalyzer;
 import static java.lang.String.format;
 import static net.andreinc.neatchess.client.breaks.Break.breakOn;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -33,7 +35,9 @@ import ictk.boardgame.chess.Rook;
 import ictk.boardgame.chess.Square;
 import ictk.boardgame.chess.io.ChessAnnotation;
 import ictk.boardgame.chess.io.FEN;
+import ictk.boardgame.chess.io.PGNReader;
 import ictk.boardgame.chess.io.PGNWriter;
+import ictk.boardgame.io.InvalidGameFormatException;
 import net.andreinc.neatchess.client.UCI;
 import net.andreinc.neatchess.client.UCIResponse;
 import net.andreinc.neatchess.client.model.Analysis;
@@ -86,13 +90,26 @@ public class ShashChessPlayer {
 	private FEN fen = new FEN();
 	private int moveCounter = 1;
 	private ChessGame currentChessGame;
+	private ChessGame currentInputChessGame;
 	private int maxMovesNumber;
 	private int iterationScore;
 	private int iterationDepth;
 	private ChessGameInfo currentChessGameInfo = new ChessGameInfo();
 	private String ecoCode;
 	private String pgnOutputFileName;
-
+	private String inputGamesPgn;
+	private Date dataInizioElaborazionePrincipale;
+	private PGNReader pgnReader;
+	private FileReader gamesFileReader;
+	private BufferedReader gamesInputBufferedReader;
+	private long numeroPartiteTotali = 0;
+	private long numeroPartiteInserite = 0;
+	private long numeroPartiteInFormatoScorretto = 0;
+	private long partitaCorrente = 0;
+	private int gamesMoveFromEco;
+    private int semiMoveNumber;
+    private PGNWriter pgnWriter = null;
+    private PrintWriter pw = null;
 	private static final Logger logger = Logger.getLogger(ShashChessPlayer.class.getName());
 
 	public ShashChessPlayer(String[] args) {
@@ -123,6 +140,8 @@ public class ShashChessPlayer {
 		setMaxMovesNumber(Integer.parseInt(shashChessPlayerProperties.getProperty("maxMovesNumber")));
 		setEcoCode(shashChessPlayerProperties.getProperty("ecoCode"));
 		setPgnOutputFileName(shashChessPlayerProperties.getProperty("pgnOutputFileName"));
+		setInputGamesPgn(shashChessPlayerProperties.getProperty("inputGamesPgn"));
+		setGamesMoveFromEco(Integer.parseInt(shashChessPlayerProperties.getProperty("gamesMoveFromEco")));
 	}
 
 	public long getStrongestAverageTimeSeconds() {
@@ -152,49 +171,160 @@ public class ShashChessPlayer {
 
 		ShashChessPlayer shashChessPlayer = new ShashChessPlayer(args);
 		try {
-			initShashChess(shashChessPlayer);
+			shashChessPlayer.setPgnWriter();
+			shashChessPlayer.initShashChess();
 			System.out.println(String.join(" ", "Begin playing at",
 					Long.toString(shashChessPlayer.getStrongestAverageTimeSeconds() * 2),
 					"seconds per move from position"));
 			String iterationFen = shashChessPlayer.getCurrentFen().trim();
-
-			if (iterationFen != null) {
-				ChessBoard iterationChessBoard = (ChessBoard) shashChessPlayer.getFen().stringToBoard(iterationFen);
-				if (iterationChessBoard != null) {
-					System.out.println("");
-					System.out.println(iterationChessBoard.toString());
-					System.out.println("");
-					History currentHistory = shashChessPlayer.getCurrentHistory(shashChessPlayer, iterationChessBoard);
-					if (currentHistory != null) {
-						while ((!iterationChessBoard.isCheckmate()
-								&& ((shashChessPlayer.getMoveCounter()) <= shashChessPlayer.getMaxMovesNumber()))
-								&& (!iterationChessBoard.is50MoveRuleApplicible())) {
-							shashChessPlayer.getLan(iterationFen, 1, shashChessPlayer.getMoveCounter(),
-									iterationChessBoard.isBlackMove());
-							shashChessPlayer.setShashinUciOptions(shashChessPlayer.getCurrentPositionType());
-							iterationFen = getStep2Fen(shashChessPlayer, iterationFen, iterationChessBoard,
-									currentHistory);
-						}
-
-					}
-				}
-				System.out.println("");
-				int finalScore = shashChessPlayer.getIterationScore();
-				int finalDepth = shashChessPlayer.getIterationDepth();
-				ChessBoard finalChessBoard = (ChessBoard) shashChessPlayer.getFen()
-						.stringToBoard(shashChessPlayer.getCurrentFen());
-				ChessResult gameResult = getGameResult(finalScore, finalChessBoard);
-				shashChessPlayer.getCurrentChessGameInfo().setResult(gameResult);
-				System.out.println(shashChessPlayer.getCurrentChessGame().getGameInfo().toString());
-				System.out.println(shashChessPlayer.getCurrentChessGame().getHistory().toString());
-				writePgn(shashChessPlayer);
-
+			String inputGamesPgn = shashChessPlayer.getInputGamesPgn();
+			if (inputGamesPgn != null && !inputGamesPgn.isEmpty()) {
+				shashChessPlayer.playFromPgnInput();
+			} else {
+				shashChessPlayer.playFromIterationFen(iterationFen);
 			}
 		} catch (Exception e) {
+			shashChessPlayer.closeWrite();
 			shashChessPlayer.closeShashChess();
 			System.out.println("End computation for timeout");
 			System.exit(0);
 		}
+	}
+
+	private void playFromPgnInput()
+			throws IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
+		setDataInizioElaborazionePrincipale(new Date());
+		int currentInputGameNumber = 0;
+		try {
+			pgnReader = getPGNReader();
+			ChessGame currentInputGame = getCurrentInputGame();
+			while (currentInputGame != null) {
+				setCurrentInputChessGame(currentInputGame);
+				currentInputGameNumber++;
+				System.out.println("Current input game: " + currentInputGameNumber);
+				setCurrentChessGameFromInput(currentInputGame);
+				History currentInputHistory = getCurrentInputHstory(currentInputGame);
+				setMoveCounter((((semiMoveNumber+1)%2!=0)?(int) Math.ceil((double) (semiMoveNumber+1) / (double) 2):((semiMoveNumber+1)/2)));
+				setEcoCode(currentInputGame.getGameInfo().getSite());
+				setMaxMovesNumber(getMoveCounter() + getGamesMoveFromEco());
+				playFromIterationFen(currentInputHistory);
+				writePgn();
+				currentInputGame = getCurrentInputGame();
+			}
+			closeAll();
+		} catch (IllegalMoveException | AmbiguousMoveException | IOException e) {
+			// TODO Auto-generated catch block
+			logger.info(e.getMessage());
+		}
+
+	}
+
+	private void closeAll() throws IOException {
+		closeWrite();
+		closeShashChess();
+		closeGamesReader();
+	}
+
+	private void playFromIterationFen(History currentInputHistory)
+			throws IOException, IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
+		ChessMove currentMove = (ChessMove) currentInputHistory.getCurrentMove();
+		String iterationFen = getFen().boardToString((ChessBoard) currentMove.getBoard());
+		playFromIterationFen(iterationFen);
+	}
+
+	private History getCurrentInputHstory(ChessGame currentInputGame) {
+		History currentInputHistory = currentInputGame.getHistory();
+		currentInputHistory.rewind();
+		semiMoveNumber = 0;
+		while (currentInputHistory.hasNext()) {
+			currentInputHistory.next();
+			semiMoveNumber++;
+		}
+		currentInputHistory.goToEnd();
+		getCurrentChessGame().setHistory(currentInputHistory);
+		return currentInputHistory;
+	}
+
+	private void setCurrentChessGameFromInput(ChessGame currentInputGame) {
+		setCurrentChessGame(new ChessGame());
+		getCurrentChessGame().setGameInfo(getChessGameInfo());
+		getCurrentChessGame().setBoard(currentInputGame.getBoard());
+	}
+
+	private void playFromIterationFen(String iterationFen)
+			throws IOException, IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
+		if (iterationFen != null && !iterationFen.isEmpty()) {
+			ChessBoard iterationChessBoard = (ChessBoard) getFen().stringToBoard(iterationFen);
+			if (iterationChessBoard != null) {
+				System.out.println(currentChessGame.getGameInfo());
+ 			    if(inputGamesPgn==null)
+				{
+					System.out.println("");
+					System.out.println(iterationChessBoard.toString());
+				}
+				else {
+					System.out.println(currentChessGame.getHistory());
+				}
+ 			    System.out.println("");
+ 			    System.out.println("Starting self play");
+				History currentHistory = getCurrentHistory(iterationChessBoard);
+				if (currentHistory != null) {
+					while ((!iterationChessBoard.isCheckmate() && ((getMoveCounter()) <= getMaxMovesNumber()))
+							&& (!iterationChessBoard.is50MoveRuleApplicible())) {
+						doFirstStep(iterationFen, 1, getMoveCounter(), iterationChessBoard.isBlackMove());
+						setShashinUciOptions(getCurrentPositionType());
+						iterationFen = getStep2Fen(iterationFen, iterationChessBoard, currentHistory);
+					}
+
+				}
+			}
+			writeCurrentGame();
+		}
+	}
+
+	private void writeCurrentGame() throws IOException {
+		System.out.println("");
+		int finalScore = getIterationScore();
+		ChessBoard finalChessBoard = (ChessBoard) getFen().stringToBoard(getCurrentFen());
+		ChessResult gameResult = getGameResult(finalScore, finalChessBoard);
+		getCurrentChessGameInfo().setResult(gameResult);
+		System.out.println(getCurrentChessGame().getGameInfo().toString());
+		System.out.println(getCurrentChessGame().getHistory().toString());
+	}
+
+	private void closeGamesReader() throws IOException {
+		pgnReader.close();
+		gamesFileReader.close();
+		gamesInputBufferedReader.close();
+	}
+
+	private ChessGame getCurrentInputGame() {
+		ChessGame currentInputGame = null;
+		while (currentInputGame == null) {
+			try {
+				currentInputGame = (ChessGame) pgnReader.readGame();
+				if (currentInputGame != null) {
+					numeroPartiteTotali++;
+					System.out.println(String.join("", "Loaded game: ",Long.toString(numeroPartiteTotali)));
+				} else {
+					return null;
+				}
+
+			} catch (InvalidGameFormatException | IllegalMoveException | AmbiguousMoveException ex) {
+				numeroPartiteInFormatoScorretto++;
+				System.out.println(String.join("","Game ",Long.toString(numeroPartiteTotali + 1) ," has an incorrect pgn."));
+			} catch (IOException ioEx) {
+				return null;
+			}
+		}
+		return currentInputGame;
+	}
+
+	private PGNReader getPGNReader() throws FileNotFoundException {
+		gamesFileReader = new FileReader(inputGamesPgn.trim());
+		gamesInputBufferedReader = new BufferedReader(gamesFileReader);
+		pgnReader = new PGNReader(gamesInputBufferedReader);
+		return pgnReader;
 	}
 
 	private static ChessResult getGameResult(int finalScore, ChessBoard finalChessBoard) {
@@ -217,63 +347,44 @@ public class ShashChessPlayer {
 		return gameResult;
 	}
 
-	private static void writePgn(ShashChessPlayer shashChessAnalyzer) {
-		PGNWriter pgnWriter = null;
-		PrintWriter pw = null;
-		try {
-			String appendGame=shashChessAnalyzer.getAppendGame();
-			pw = new PrintWriter(new FileWriter(shashChessAnalyzer.getPgnOutputFileName(), ((appendGame!=null)&&(appendGame.equalsIgnoreCase("Yes")))?true:false));
-			pgnWriter = new PGNWriter(pw);
-			pgnWriter.writeGame(shashChessAnalyzer.getCurrentChessGame());
-			pw.print("\r\n");
-			pw.close();
-			pgnWriter.close();
-
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+	private History getCurrentHistory(ChessBoard iterationChessBoard) {
+		setCurrentChessGame(getCurrentChessGame(iterationChessBoard));
+		ChessGameInfo currentChessGameInfo = getChessGameInfo();
+		if (getCurrentInputChessGame() == null) {
+			getCurrentChessGame().setGameInfo(currentChessGameInfo);
 		}
-		shashChessAnalyzer.closeShashChess();
-	}
-
-	private History getCurrentHistory(ShashChessPlayer shashChessAnalyzer, ChessBoard iterationChessBoard) {
-		shashChessAnalyzer.setCurrentChessGame(getCurrentChessGame(iterationChessBoard));
-		ChessGameInfo currentChessGameInfo = getCurrentChessGameInfo(shashChessAnalyzer, iterationChessBoard,
-				shashChessAnalyzer.getCurrentChessGame());
-		shashChessAnalyzer.getCurrentChessGame().setGameInfo(currentChessGameInfo);
-		History currentHistory = shashChessAnalyzer.getCurrentChessGame().getHistory();
+		History currentHistory = getCurrentChessGame().getHistory();
 		return currentHistory;
 	}
 
-	private static ChessGame getCurrentChessGame(ChessBoard iterationChessBoard) {
-		ChessGame currentChessGame = new ChessGame();
-		currentChessGame.setBoard(iterationChessBoard);
+	private ChessGame getCurrentChessGame(ChessBoard iterationChessBoard) {
+		ChessGame currentChessGame = (getCurrentInputChessGame() == null) ? new ChessGame() : getCurrentChessGame();
+		if (getCurrentInputChessGame() == null) {
+			currentChessGame.setBoard(iterationChessBoard);
+		}
 		return currentChessGame;
 	}
 
-	private static ChessGameInfo getCurrentChessGameInfo(ShashChessPlayer shashChessPlayer,
-			ChessBoard iterationChessBoard, ChessGame currentChessGame) {
-
-		shashChessPlayer.getCurrentChessGameInfo().setBlack(new ChessPlayer(shashChessPlayer.getEngineName()));
-		shashChessPlayer.getCurrentChessGameInfo().setWhite(new ChessPlayer(shashChessPlayer.getEngineName()));
+	private ChessGameInfo getChessGameInfo() {
+		getCurrentChessGameInfo().setBlack(new ChessPlayer(getEngineName()));
+		getCurrentChessGameInfo().setWhite(new ChessPlayer(getEngineName()));
 		Calendar calendar = Calendar.getInstance();
 		Date currentDate = calendar.getTime();
 		calendar.setTime(currentDate);
-		shashChessPlayer.getCurrentChessGameInfo().setDay(calendar.get(Calendar.DAY_OF_WEEK));
-		shashChessPlayer.getCurrentChessGameInfo().setMonth(calendar.get(Calendar.MONTH) + 1);
-		shashChessPlayer.getCurrentChessGameInfo().setYear(calendar.get(Calendar.YEAR));
-		shashChessPlayer.getCurrentChessGameInfo().setDate(calendar);
-		shashChessPlayer.getCurrentChessGameInfo().setSite(shashChessPlayer.getComputerName());
-		shashChessPlayer.getCurrentChessGameInfo().setBlackRating(3500);
-		shashChessPlayer.getCurrentChessGameInfo().setWhiteRating(3500);
-		shashChessPlayer.getCurrentChessGameInfo().setECO(shashChessPlayer.getEcoCode());
-		shashChessPlayer.getCurrentChessGameInfo().setEvent("ShashChessPlayer game");
-		shashChessPlayer.getCurrentChessGameInfo().setRound("1");
-		shashChessPlayer.getCurrentChessGameInfo().setSubRound("");
-		shashChessPlayer.getCurrentChessGameInfo().setTimeControlIncrement(0);
-		shashChessPlayer.getCurrentChessGameInfo()
-				.setTimeControlInitial((int) shashChessPlayer.getStrongestAverageTimeSeconds() * 2);
-		return shashChessPlayer.getCurrentChessGameInfo();
+		getCurrentChessGameInfo().setDay(calendar.get(Calendar.DAY_OF_WEEK));
+		getCurrentChessGameInfo().setMonth(calendar.get(Calendar.MONTH) + 1);
+		getCurrentChessGameInfo().setYear(calendar.get(Calendar.YEAR));
+		getCurrentChessGameInfo().setDate(calendar);
+		getCurrentChessGameInfo().setSite(getComputerName());
+		getCurrentChessGameInfo().setBlackRating(3500);
+		getCurrentChessGameInfo().setWhiteRating(3500);
+		getCurrentChessGameInfo().setECO(getEcoCode());
+		getCurrentChessGameInfo().setEvent((inputGamesPgn!=null)?"Games from pgn":"Game from fen");
+		getCurrentChessGameInfo().setRound("1");
+		getCurrentChessGameInfo().setSubRound("");
+		getCurrentChessGameInfo().setTimeControlIncrement(0);
+		getCurrentChessGameInfo().setTimeControlInitial((int) getStrongestAverageTimeSeconds() * 2);
+		return getCurrentChessGameInfo();
 	}
 
 	private String getComputerName() {
@@ -286,11 +397,9 @@ public class ShashChessPlayer {
 			return "Unknown Computer";
 	}
 
-	private static String getStep2Fen(ShashChessPlayer shashChessAnalyzer, String iterationFen,
-			ChessBoard iterationChessBoard, History currentHistory)
+	private String getStep2Fen(String iterationFen, ChessBoard iterationChessBoard, History currentHistory)
 			throws IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
-		String lan2 = shashChessAnalyzer.getLan(iterationFen, 2, shashChessAnalyzer.getMoveCounter(),
-				iterationChessBoard.isBlackMove());
+		String lan2 = doFirstStep(iterationFen, 2, getMoveCounter(), iterationChessBoard.isBlackMove());
 		if (lan2 != null) {
 			String origSquareStr = lan2.substring(0, 2);
 			Square origSquare = iterationChessBoard.getSquare((byte) (origSquareStr.charAt(0) - 96),
@@ -299,56 +408,52 @@ public class ShashChessPlayer {
 			Square destSquare = iterationChessBoard.getSquare((byte) (destSquareStr.charAt(0) - 96),
 					Byte.parseByte(destSquareStr.substring(1)));
 			if ((origSquareStr != null) && (origSquare != null) && (destSquareStr != null) && (destSquare != null)) {
-				iterationFen = getCurrentChessMove(shashChessAnalyzer, iterationChessBoard, currentHistory, lan2,
-						origSquareStr, origSquare, destSquareStr, destSquare);
+				iterationFen = getCurrentIterationFen(iterationChessBoard, currentHistory, lan2, origSquareStr, origSquare,
+						destSquareStr, destSquare);
 			}
-			shashChessAnalyzer.setMoveCounter(iterationChessBoard.isBlackMove()?shashChessAnalyzer.getMoveCounter():shashChessAnalyzer.getMoveCounter() + 1);
+			setMoveCounter(iterationChessBoard.isBlackMove() ? getMoveCounter() : getMoveCounter() + 1);
 		}
 		return iterationFen;
 	}
 
-	private static String getCurrentChessMove(ShashChessPlayer shashChessAnalyzer, ChessBoard iterationChessBoard,
-			History currentHistory, String lan2, String origSquareStr, Square origSquare, String destSquareStr,
-			Square destSquare) throws IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
-		String iterationFen=null;
+	private String getCurrentIterationFen(ChessBoard iterationChessBoard, History currentHistory, String lan2,
+			String origSquareStr, Square origSquare, String destSquareStr, Square destSquare)
+			throws IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
+		String iterationFen = null;
 		ChessMove iterationChessMove = null;
-		iterationChessMove = getPromotionMove(shashChessAnalyzer, iterationChessBoard, lan2, origSquare, destSquare,
-				iterationChessMove);
-		iterationChessMove = getCastleMove(shashChessAnalyzer, iterationChessBoard, origSquareStr, destSquareStr,
-				iterationChessMove);
+		iterationChessMove = getPromotionMove(iterationChessBoard, lan2, origSquare, destSquare, iterationChessMove);
+		iterationChessMove = getCastleMove(iterationChessBoard, origSquareStr, destSquareStr, iterationChessMove);
 		if (iterationChessMove == null) {
 			iterationChessMove = new ChessMove(iterationChessBoard, origSquare, destSquare);
 		}
 		if (iterationChessMove != null) {
 			currentHistory.add(iterationChessMove);
 		}
-		ChessAnnotation iterationChessMoveAnnotation=new ChessAnnotation();
-		iterationChessMoveAnnotation.setComment(String.join("",Integer.toString(shashChessAnalyzer.getIterationScore()),"cp"," ",Integer.toString(shashChessAnalyzer.getIterationDepth()),"depth"," ",shashChessAnalyzer.getCurrentPositionType()));
+		ChessAnnotation iterationChessMoveAnnotation = new ChessAnnotation();
+		iterationChessMoveAnnotation.setComment(String.join("", Integer.toString(getIterationScore()), "cp", " ",
+				Integer.toString(getIterationDepth()), "depth", " ", getCurrentPositionType()));
 		iterationChessMove.setAnnotation(iterationChessMoveAnnotation);
-		shashChessAnalyzer.setCurrentFen(shashChessAnalyzer.getFen().boardToString(iterationChessBoard));
-		if(shashChessAnalyzer.getCurrentFen()!=null)
-		{
-			iterationFen = shashChessAnalyzer.getCurrentFen().trim();
+		setCurrentFen(getFen().boardToString(iterationChessBoard));
+		if (getCurrentFen() != null) {
+			iterationFen = getCurrentFen().trim();
 		}
 		return iterationFen;
 	}
 
-	private static ChessMove getCastleMove(ShashChessPlayer shashChessAnalyzer, ChessBoard iterationChessBoard,
+	private ChessMove getCastleMove(ChessBoard iterationChessBoard,
 			String origSquareStr, String destSquareStr, ChessMove iterationChessMove) throws IllegalMoveException {
 		if (iterationChessMove == null) {
-			iterationChessMove = shashChessAnalyzer.getCastleMove(origSquareStr, destSquareStr, iterationChessMove,
+			iterationChessMove = getCastleMove(origSquareStr, destSquareStr, iterationChessMove,
 					iterationChessBoard);
 		}
 		return iterationChessMove;
 	}
 
-	private static ChessMove getPromotionMove(ShashChessPlayer shashChessAnalyzer, ChessBoard iterationChessBoard,
-			String lan2, Square origSquare, Square destSquare, ChessMove iterationChessMove)
-			throws IllegalMoveException {
+	private ChessMove getPromotionMove(ChessBoard iterationChessBoard, String lan2, Square origSquare,
+			Square destSquare, ChessMove iterationChessMove) throws IllegalMoveException {
 		if (lan2.length() == 5) {
 			char promotionUnit = lan2.substring(4, 5).charAt(0);
-			iterationChessMove = shashChessAnalyzer.getPromotionMove(origSquare, destSquare, iterationChessBoard,
-					promotionUnit);
+			iterationChessMove = getPromotionMove(origSquare, destSquare, iterationChessBoard, promotionUnit);
 		}
 		return iterationChessMove;
 	}
@@ -389,16 +494,16 @@ public class ShashChessPlayer {
 		return currentChessMove;
 	}
 
-	private static void initShashChess(ShashChessPlayer shashChessAnalyzer) {
-		shashChessAnalyzer.startShashChess();
-		shashChessAnalyzer.setInitialUciOptions();
-		String showEngineInfos = shashChessAnalyzer.getShowEngineInfos();
+	private void initShashChess() {
+		startShashChess();
+		setInitialUciOptions();
+		String showEngineInfos = getShowEngineInfos();
 		if ((showEngineInfos != null) && (!showEngineInfos.isEmpty()) && (showEngineInfos.equalsIgnoreCase("yes"))) {
-			shashChessAnalyzer.retrieveShashChessInfo();
+			retrieveShashChessInfo();
 		}
 	}
 
-	private String getLan(String fen, int step, int moveCounter, boolean isBlackMove) {
+	private String doFirstStep(String fen, int step, int moveCounter, boolean isBlackMove) {
 		long currentAverageTimeMSForMove = strongestAverageTimeSecondsForMove * 1000;
 		uci.uciNewGame();
 		uci.positionFen(fen);
@@ -468,19 +573,23 @@ public class ShashChessPlayer {
 			uci.setOption(HIGH_TAL, "true", timeoutMS).getResultOrThrow();
 			break;
 		case CAOS_TAL_CAPABLANCA_PETROSIAN:
-			uci.setOption(HIGH_PETROSIAN, "true", timeoutMS).getResultOrThrow();
-			uci.setOption(MIDDLE_PETROSIAN, "true", timeoutMS).getResultOrThrow();
-			uci.setOption(LOW_PETROSIAN, "true", timeoutMS).getResultOrThrow();
-			uci.setOption(CAPABLANCA, "true", timeoutMS).getResultOrThrow();
-			uci.setOption(LOW_TAL, "true", timeoutMS).getResultOrThrow();
-			uci.setOption(LOW_MIDDLE_TAL, "true", timeoutMS).getResultOrThrow();
-			uci.setOption(MIDDLE_TAL, "true", timeoutMS).getResultOrThrow();
-			uci.setOption(HIGH_TAL, "true", timeoutMS).getResultOrThrow();
+			setAllPersonalities();
 			break;
 		default:
 			break;
 		}
 
+	}
+
+	private void setAllPersonalities() {
+		uci.setOption(HIGH_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+		uci.setOption(MIDDLE_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+		uci.setOption(LOW_PETROSIAN, "true", timeoutMS).getResultOrThrow();
+		uci.setOption(CAPABLANCA, "true", timeoutMS).getResultOrThrow();
+		uci.setOption(LOW_TAL, "true", timeoutMS).getResultOrThrow();
+		uci.setOption(LOW_MIDDLE_TAL, "true", timeoutMS).getResultOrThrow();
+		uci.setOption(MIDDLE_TAL, "true", timeoutMS).getResultOrThrow();
+		uci.setOption(HIGH_TAL, "true", timeoutMS).getResultOrThrow();
 	}
 
 	private String getPositionType(int score) {
@@ -539,6 +648,7 @@ public class ShashChessPlayer {
 			uci.setOption("MCTS", mcts, timeoutMS).getResultOrThrow();
 			uci.setOption("MCTSThreads", mCTSThreads, timeoutMS).getResultOrThrow();
 		} catch (Exception e) {
+			closeWrite();
 			closeShashChess();
 			System.out.println("Impossible to setup uci options");
 			System.exit(0);
@@ -569,7 +679,31 @@ public class ShashChessPlayer {
 		System.out.println("Engine closed");
 		System.exit(0);
 	}
+	private void writePgn() {
+		try {
+			pgnWriter.writeGame(getCurrentChessGame());
+			pw.print("\r\n");
+			if(inputGamesPgn==null) {
+				closeWrite();
+				closeShashChess();
+			}
 
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	private void setPgnWriter() throws IOException {
+		String appendGame=getAppendGame();
+		pw = new PrintWriter(new FileWriter(getPgnOutputFileName(), ((appendGame!=null)&&(appendGame.equalsIgnoreCase("Yes")))?true:false));
+		pgnWriter = new PGNWriter(pw);
+	}
+
+	private void closeWrite() {
+		pw.close();
+		pgnWriter.close();
+	}
 	private void startShashChess() {
 		String engineNameWithExtension = String.join("",
 				(System.getProperty("os.name").contains("Windows") ? engineName : String.join("", "./", engineName)),
@@ -811,5 +945,117 @@ public class ShashChessPlayer {
 
 	public void setAppendGame(String appendGame) {
 		this.appendGame = appendGame;
+	}
+
+	public String getInputGamesPgn() {
+		return inputGamesPgn;
+	}
+
+	public void setInputGamesPgn(String inputGamesPgn) {
+		this.inputGamesPgn = inputGamesPgn;
+	}
+
+	public Date getDataInizioElaborazionePrincipale() {
+		return dataInizioElaborazionePrincipale;
+	}
+
+	public void setDataInizioElaborazionePrincipale(Date dataInizioElaborazionePrincipale) {
+		this.dataInizioElaborazionePrincipale = dataInizioElaborazionePrincipale;
+	}
+
+	public PGNReader getPgnReader() {
+		return pgnReader;
+	}
+
+	public void setPgnReader(PGNReader pgnReader) {
+		this.pgnReader = pgnReader;
+	}
+
+	public FileReader getGamesFileReader() {
+		return gamesFileReader;
+	}
+
+	public BufferedReader getGamesInputBufferedReader() {
+		return gamesInputBufferedReader;
+	}
+
+	public void setGamesFileReader(FileReader gamesFileReader) {
+		this.gamesFileReader = gamesFileReader;
+	}
+
+	public void setGamesInputBufferedReader(BufferedReader gamesInputBufferedReader) {
+		this.gamesInputBufferedReader = gamesInputBufferedReader;
+	}
+
+	public long getNumeroPartiteTotali() {
+		return numeroPartiteTotali;
+	}
+
+	public long getNumeroPartiteInserite() {
+		return numeroPartiteInserite;
+	}
+
+	public long getNumeroPartiteInFormatoScorretto() {
+		return numeroPartiteInFormatoScorretto;
+	}
+
+	public long getPartitaCorrente() {
+		return partitaCorrente;
+	}
+
+	public void setNumeroPartiteTotali(long numeroPartiteTotali) {
+		this.numeroPartiteTotali = numeroPartiteTotali;
+	}
+
+	public void setNumeroPartiteInserite(long numeroPartiteInserite) {
+		this.numeroPartiteInserite = numeroPartiteInserite;
+	}
+
+	public void setNumeroPartiteInFormatoScorretto(long numeroPartiteInFormatoScorretto) {
+		this.numeroPartiteInFormatoScorretto = numeroPartiteInFormatoScorretto;
+	}
+
+	public void setPartitaCorrente(long partitaCorrente) {
+		this.partitaCorrente = partitaCorrente;
+	}
+
+	public ChessGame getCurrentInputChessGame() {
+		return currentInputChessGame;
+	}
+
+	public void setCurrentInputChessGame(ChessGame currentInputChessGame) {
+		this.currentInputChessGame = currentInputChessGame;
+	}
+
+	public int getGamesMoveFromEco() {
+		return gamesMoveFromEco;
+	}
+
+	public void setGamesMoveFromEco(int gamesMoveFromEco) {
+		this.gamesMoveFromEco = gamesMoveFromEco;
+	}
+
+	public int getSemiMoveNumber() {
+		return semiMoveNumber;
+	}
+
+	public void setSemiMoveNumber(int semiMoveNumber) {
+		this.semiMoveNumber = semiMoveNumber;
+	}
+
+	public PGNWriter getPgnWriter() {
+		return pgnWriter;
+	}
+
+	public PrintWriter getPw() {
+		return pw;
+	}
+
+	public void setPgnWriter(PGNWriter pgnWriter) {
+		this.pgnWriter = pgnWriter;
+	}
+
+	public void setPw(PrintWriter pw) {
+		this.pw = pw;
 	}
 }
