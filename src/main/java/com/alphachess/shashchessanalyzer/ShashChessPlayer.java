@@ -27,6 +27,7 @@ import ictk.boardgame.chess.ChessBoard;
 import ictk.boardgame.chess.ChessGame;
 import ictk.boardgame.chess.ChessGameInfo;
 import ictk.boardgame.chess.ChessMove;
+import ictk.boardgame.chess.ChessPiece;
 import ictk.boardgame.chess.ChessPlayer;
 import ictk.boardgame.chess.ChessResult;
 import ictk.boardgame.chess.Knight;
@@ -113,7 +114,7 @@ public class ShashChessPlayer {
 	private static final Logger logger = Logger.getLogger(ShashChessPlayer.class.getName());
 
 	public ShashChessPlayer(String[] args) {
-		shashChessPlayerProperties = getShashChessAnalyzerProperties(args);
+		shashChessPlayerProperties = getShashChessPlayerProperties(args);
 		setInputParameters();
 		setTimeoutMS(timeoutSeconds * 1000);
 		uci = new UCI(timeoutMS);
@@ -148,7 +149,7 @@ public class ShashChessPlayer {
 		return (long) (getHashSizeMB() * 512 / (getThreadsNumber() * getCpuMhz()));
 	}
 
-	private Properties getShashChessAnalyzerProperties(String[] args) {
+	private Properties getShashChessPlayerProperties(String[] args) {
 		String shashChessAnalyzerProperties = args[0];
 		Properties properties = new Properties();
 		try {
@@ -482,17 +483,20 @@ public class ShashChessPlayer {
 
 	private ChessMove getCastleMove(String origSquareStr, String destSquareStr, ChessMove currentChessMove,
 			ChessBoard iterationChessBoard) throws IllegalMoveException {
-		if ((origSquareStr.equals("e1") && destSquareStr.equals("g1"))
-				|| (origSquareStr.equals("e8") && destSquareStr.equals("g8"))) {
+		ChessPiece whiteOccupant = iterationChessBoard.getSquare(5,1).getOccupant();
+		boolean isKingWhite=whiteOccupant!=null?whiteOccupant.isKing():false;
+		ChessPiece blackOccupant = iterationChessBoard.getSquare(5,8).getOccupant();
+		boolean isKingBlack=blackOccupant!=null?blackOccupant.isKing():false;
+		if (isKingWhite &&((origSquareStr.equals("e1") && destSquareStr.equals("g1"))
+				|| (origSquareStr.equals("e8") && destSquareStr.equals("g8")))) {
 			currentChessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_KINGSIDE);
 		}
-		if ((origSquareStr.equals("e1") && destSquareStr.equals("c1"))
-				|| (origSquareStr.equals("e8") && destSquareStr.equals("c8"))) {
+		if (isKingBlack && ((origSquareStr.equals("e1") && destSquareStr.equals("c1"))
+				|| (origSquareStr.equals("e8") && destSquareStr.equals("c8")))) {
 			currentChessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_QUEENSIDE);
 		}
 		return currentChessMove;
 	}
-
 	private void initShashChess() {
 		startShashChess();
 		setInitialUciOptions();
