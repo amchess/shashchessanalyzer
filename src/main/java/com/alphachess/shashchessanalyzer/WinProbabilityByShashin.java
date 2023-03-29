@@ -122,8 +122,8 @@ public class WinProbabilityByShashin {
 			return value;
 		}
 	};	
-	public int getWinProbability(int score, int ply) {
-		int value=(score*NORMALIZE_TO_PAWN_VALUE/100);
+	public int getWinProbability(long score, int ply) {
+		long value=(long)(score*NORMALIZE_TO_PAWN_VALUE/100);
 		double winrateToMove=(0.5 + 1000 / (1 + Math.exp((((((0.3367760 * (Math.min(240, ply) / 64.0) + -4.30175627) * (Math.min(240, ply) / 64.0) + 33.08810557) * 
 	    		(Math.min(240, ply) / 64.0)) + 365.60223431) - (GenericUtil.clamp((double)(value), -4000.0, 4000.0))) / ((((-2.50471102 * (Math.min(240, ply) / 64.0) + 15.96509799) * 
 	    				(Math.min(240, ply) / 64.0) + -14.33066859) * (Math.min(240, ply) / 64.0)) + 71.42705250))));
