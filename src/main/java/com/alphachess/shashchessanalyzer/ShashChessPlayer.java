@@ -95,6 +95,9 @@ public class ShashChessPlayer {
 	private PGNWriter pgnWriter = null;
 	private PrintWriter pw = null;
 	private WinProbabilityByShashin winProbabilityByShashin = new WinProbabilityByShashin();
+	private boolean blackCastleable=true;
+	private boolean whiteCastleable=true;
+	
 	private static final Logger logger = Logger.getLogger(ShashChessPlayer.class.getName());
 
 	public ShashChessPlayer(String[] args) {
@@ -112,7 +115,9 @@ public class ShashChessPlayer {
 		setSyzygyPath(shashChessPlayerProperties.getProperty("syzygyPath"));
 		setSyzygyProbeDepth(shashChessPlayerProperties.getProperty("syzygyProbeDepth"));
 		setStrongestAverageTimeSecondsForMove(getStrongestAverageTimeSeconds());
-		setCurrentFen(shashChessPlayerProperties.getProperty("fen")!=null?shashChessPlayerProperties.getProperty("fen"):"");
+		setCurrentFen(
+				shashChessPlayerProperties.getProperty("fen") != null ? shashChessPlayerProperties.getProperty("fen")
+						: "");
 		setFullDepthThreads(shashChessPlayerProperties.getProperty("fullDepthThreads"));
 		setOpeningVariety(shashChessPlayerProperties.getProperty("openingVariety"));
 		setPersistedLearning(shashChessPlayerProperties.getProperty("persistedLearning"));
@@ -194,8 +199,9 @@ public class ShashChessPlayer {
 				setMoveCounter(
 						(((semiMoveNumber + 1) % 2 != 0) ? (int) Math.floor((double) (semiMoveNumber + 1) / (double) 2)
 								: ((semiMoveNumber + 1) / 2)));
-				ChessGameInfo currentInputChessGame=(ChessGameInfo)(currentInputGame.getGameInfo());
-				String ecoCode=currentInputChessGame.getECO()!=null?currentInputChessGame.getECO():currentInputGame.getGameInfo().getSite();
+				ChessGameInfo currentInputChessGame = (ChessGameInfo) (currentInputGame.getGameInfo());
+				String ecoCode = currentInputChessGame.getECO() != null ? currentInputChessGame.getECO()
+						: currentInputGame.getGameInfo().getSite();
 				setEcoCode(ecoCode);
 				setMaxMovesNumber(getMoveCounter() + getGamesMoveFromEco());
 				playFromIterationFen(currentInputHistory);
@@ -433,16 +439,67 @@ public class ShashChessPlayer {
 		}
 		ChessAnnotation iterationChessMoveAnnotation = new ChessAnnotation();
 		iterationChessMoveAnnotation.setComment(String.join("", Integer.toString(getIterationScore()), "cp", " ",
-				Integer.toString(getIterationDepth()), " ","depth", " ",
+				Integer.toString(getIterationDepth()), " ", "depth", " ",
 				Integer.toString(winProbabilityByShashin.getWinProbability(getIterationScore(),
-						iterationChessBoard.getCurrentMoveNumber()))," ",
-				"Win Probability", " ", getCurrentPositionType()));
+						iterationChessBoard.getCurrentMoveNumber())),
+				" ", "Win Probability", " ", getCurrentPositionType()));
 		iterationChessMove.setAnnotation(iterationChessMoveAnnotation);
+
+		ChessPiece iterationChessMoveUnit = iterationChessMove.getChessPiece();
+		setCasteable(iterationChessBoard, iterationChessMove, iterationChessMoveUnit);
+		
 		setCurrentFen(getFen().boardToString(iterationChessBoard));
 		if (getCurrentFen() != null) {
 			iterationFen = getCurrentFen().trim();
 		}
 		return iterationFen;
+	}
+
+	private void setCasteable(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
+			ChessPiece iterationChessMoveUnit) {
+		boolean isBlackIterationChessMoveUnit = iterationChessMoveUnit.isBlack();
+		setCasleableBlack(iterationChessBoard, iterationChessMove, iterationChessMoveUnit,
+				isBlackIterationChessMoveUnit);
+		setCasteableBlack(iterationChessBoard, iterationChessMove, iterationChessMoveUnit,
+				isBlackIterationChessMoveUnit);
+	}
+
+	private void setCasteableBlack(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
+			ChessPiece iterationChessMoveUnit, boolean isBlackIterationChessMoveUnit) {
+		if(isWhiteCastleable()) {
+			if (iterationChessMoveUnit.isKing()&&!isBlackIterationChessMoveUnit)
+			{
+				iterationChessBoard.setWhiteCastleableKingside(false);
+				iterationChessBoard.setWhiteCastleableQueenside(false);
+			}
+			if(iterationChessMoveUnit.isRook()&&(iterationChessMove.getOrigin().toString().equals("a1"))&&(!isBlackIterationChessMoveUnit))
+			{
+				iterationChessBoard.setWhiteCastleableQueenside(false);
+			}
+			if(iterationChessMoveUnit.isRook()&&(iterationChessMove.getOrigin().toString().equals("h1"))&&(!isBlackIterationChessMoveUnit))
+			{
+				iterationChessBoard.setWhiteCastleableKingside(false);
+			}
+		}
+	}
+
+	private void setCasleableBlack(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
+			ChessPiece iterationChessMoveUnit, boolean isBlackIterationChessMoveUnit) {
+		if(isBlackCastleable()) {
+			if (iterationChessMoveUnit.isKing()&&isBlackIterationChessMoveUnit)
+			{
+				iterationChessBoard.setBlackCastleableKingside(false);
+				iterationChessBoard.setBlackCastleableQueenside(false);
+			}
+			if(iterationChessMoveUnit.isRook()&&(iterationChessMove.getOrigin().toString().equals("a8"))&&isBlackIterationChessMoveUnit)
+			{
+				iterationChessBoard.setBlackCastleableQueenside(false);
+			}
+			if(iterationChessMoveUnit.isRook()&&(iterationChessMove.getOrigin().toString().equals("h8"))&&isBlackIterationChessMoveUnit)
+			{
+				iterationChessBoard.setBlackCastleableKingside(false);
+			}
+		}
 	}
 
 	private ChessMove getCastleMove(ChessBoard iterationChessBoard, String origSquareStr, String destSquareStr,
@@ -1032,7 +1089,25 @@ public class ShashChessPlayer {
 		this.pgnWriter = pgnWriter;
 	}
 
+	public boolean isBlackCastleable() {
+		return blackCastleable;
+	}
+
+	public void setBlackCastleable(boolean blackCastleable) {
+		this.blackCastleable = blackCastleable;
+	}
+
+	public boolean isWhiteCastleable() {
+		return whiteCastleable;
+	}
+
+	public void setWhiteCastleable(boolean whiteCastleable) {
+		this.whiteCastleable = whiteCastleable;
+	}
+
 	public void setPw(PrintWriter pw) {
 		this.pw = pw;
 	}
+
+
 }
