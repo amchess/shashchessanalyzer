@@ -199,8 +199,8 @@ public class ShashChessPlayer {
 				setMoveCounter(
 						(((semiMoveNumber + 1) % 2 != 0) ? (int) Math.floor((double) (semiMoveNumber + 1) / (double) 2)
 								: ((semiMoveNumber + 1) / 2)));
-				ChessGameInfo currentInputChessGame = (ChessGameInfo) (currentInputGame.getGameInfo());
-				String ecoCode = currentInputChessGame.getECO() != null ? currentInputChessGame.getECO()
+				ChessGameInfo currentInputChessGameInfo = (ChessGameInfo) (currentInputGame.getGameInfo());
+				String ecoCode = currentInputChessGameInfo.getECO() != null ? currentInputChessGameInfo.getECO()
 						: currentInputGame.getGameInfo().getSite();
 				setEcoCode(ecoCode);
 				setMaxMovesNumber(getMoveCounter() + getGamesMoveFromEco());
@@ -458,13 +458,13 @@ public class ShashChessPlayer {
 	private void setCasteable(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
 			ChessPiece iterationChessMoveUnit) {
 		boolean isBlackIterationChessMoveUnit = iterationChessMoveUnit.isBlack();
-		setCasleableBlack(iterationChessBoard, iterationChessMove, iterationChessMoveUnit,
+		setCasteableWhite(iterationChessBoard, iterationChessMove, iterationChessMoveUnit,
 				isBlackIterationChessMoveUnit);
 		setCasteableBlack(iterationChessBoard, iterationChessMove, iterationChessMoveUnit,
 				isBlackIterationChessMoveUnit);
 	}
 
-	private void setCasteableBlack(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
+	private void setCasteableWhite(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
 			ChessPiece iterationChessMoveUnit, boolean isBlackIterationChessMoveUnit) {
 		if(isWhiteCastleable()) {
 			if (iterationChessMoveUnit.isKing()&&!isBlackIterationChessMoveUnit)
@@ -483,7 +483,7 @@ public class ShashChessPlayer {
 		}
 	}
 
-	private void setCasleableBlack(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
+	private void setCasteableBlack(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
 			ChessPiece iterationChessMoveUnit, boolean isBlackIterationChessMoveUnit) {
 		if(isBlackCastleable()) {
 			if (iterationChessMoveUnit.isKing()&&isBlackIterationChessMoveUnit)
