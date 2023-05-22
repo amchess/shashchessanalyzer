@@ -171,7 +171,7 @@ public class ShashChessPlayer {
 			if (inputGamesPgn != null && !inputGamesPgn.isEmpty()) {
 				shashChessPlayer.playFromPgnInput();
 			} else {
-				shashChessPlayer.playFromIterationFen(iterationFen);
+				shashChessPlayer.playFromIterationFen(iterationFen, false);
 			}
 		} catch (Exception e) {
 			shashChessPlayer.closeWrite();
@@ -204,8 +204,7 @@ public class ShashChessPlayer {
 						: currentInputGame.getGameInfo().getSite();
 				setEcoCode(ecoCode);
 				setMaxMovesNumber(getMoveCounter() + getGamesMoveFromEco());
-				playFromIterationFen(currentInputHistory);
-				writePgn();
+				playFromIterationFen(currentInputHistory, true);
 				currentInputGame = getCurrentInputGame();
 			}
 			closeAll();
@@ -222,11 +221,11 @@ public class ShashChessPlayer {
 		closeGamesReader();
 	}
 
-	private void playFromIterationFen(History currentInputHistory)
+	private void playFromIterationFen(History currentInputHistory, boolean fromPgn)
 			throws IOException, IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
 		ChessMove currentMove = (ChessMove) currentInputHistory.getCurrentMove();
 		String iterationFen = getFen().boardToString((ChessBoard) currentMove.getBoard());
-		playFromIterationFen(iterationFen);
+		playFromIterationFen(iterationFen, fromPgn);
 	}
 
 	private History getCurrentInputHistory(ChessGame currentInputGame) {
@@ -248,7 +247,7 @@ public class ShashChessPlayer {
 		getCurrentChessGame().setBoard(currentInputGame.getBoard());
 	}
 
-	private void playFromIterationFen(String iterationFen)
+	private void playFromIterationFen(String iterationFen, boolean fromPgn)
 			throws IOException, IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
 		if (iterationFen != null && !iterationFen.isEmpty()) {
 			ChessBoard iterationChessBoard = (ChessBoard) getFen().stringToBoard(iterationFen);
@@ -438,11 +437,11 @@ public class ShashChessPlayer {
 							: ((semiMoveNumber + 1) / 2)));
 		}
 		ChessAnnotation iterationChessMoveAnnotation = new ChessAnnotation();
-		iterationChessMoveAnnotation.setComment(String.join("", Integer.toString(getIterationScore()), ",",
-				Integer.toString(getIterationDepth()), ",",
+		iterationChessMoveAnnotation.setComment(String.join("", Integer.toString(getIterationScore()), ";",
+				Integer.toString(getIterationDepth()), ";",
 				Integer.toString(winProbabilityByShashin.getWinProbability(getIterationScore(),
 						iterationChessBoard.getCurrentMoveNumber())),
-				",", getCurrentPositionType()));
+				";", getAbbreviatePositionType(getCurrentPositionType())));
 		iterationChessMove.setAnnotation(iterationChessMoveAnnotation);
 
 		ChessPiece iterationChessMoveUnit = iterationChessMove.getChessPiece();
@@ -548,12 +547,12 @@ public class ShashChessPlayer {
 		boolean isKingWhite = whiteOccupant != null ? whiteOccupant.isKing() : false;
 		ChessPiece blackOccupant = iterationChessBoard.getSquare(5, 8).getOccupant();
 		boolean isKingBlack = blackOccupant != null ? blackOccupant.isKing() : false;
-		if (isKingWhite && ((origSquareStr.equals("e1") && destSquareStr.equals("g1"))
-				|| (origSquareStr.equals("e8") && destSquareStr.equals("g8")))) {
+		if ((isKingWhite && ((origSquareStr.equals("e1") && destSquareStr.equals("g1")))
+				|| (isKingBlack && origSquareStr.equals("e8") && destSquareStr.equals("g8")))) {
 			currentChessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_KINGSIDE);
 		}
-		if (isKingBlack && ((origSquareStr.equals("e1") && destSquareStr.equals("c1"))
-				|| (origSquareStr.equals("e8") && destSquareStr.equals("c8")))) {
+		if (isKingWhite && ((origSquareStr.equals("e1") && destSquareStr.equals("c1"))
+				|| (isKingBlack && origSquareStr.equals("e8") && destSquareStr.equals("c8")))) {
 			currentChessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_QUEENSIDE);
 		}
 		return currentChessMove;
