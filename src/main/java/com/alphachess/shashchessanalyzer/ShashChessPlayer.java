@@ -438,11 +438,11 @@ public class ShashChessPlayer {
 							: ((semiMoveNumber + 1) / 2)));
 		}
 		ChessAnnotation iterationChessMoveAnnotation = new ChessAnnotation();
-		iterationChessMoveAnnotation.setComment(String.join("", Integer.toString(getIterationScore()), "cp", " ",
-				Integer.toString(getIterationDepth()), " ", "depth", " ",
+		iterationChessMoveAnnotation.setComment(String.join("", Integer.toString(getIterationScore()), ",",
+				Integer.toString(getIterationDepth()), ",",
 				Integer.toString(winProbabilityByShashin.getWinProbability(getIterationScore(),
 						iterationChessBoard.getCurrentMoveNumber())),
-				" ", "Win Probability", " ", getCurrentPositionType()));
+				",", getCurrentPositionType()));
 		iterationChessMove.setAnnotation(iterationChessMoveAnnotation);
 
 		ChessPiece iterationChessMoveUnit = iterationChessMove.getChessPiece();
@@ -585,15 +585,18 @@ public class ShashChessPlayer {
 			setMoveCounter(
 					(((semiMoveNumber + 2) % 2 != 0) ? (int) Math.floor((double) (semiMoveNumber + 2) / (double) 2)
 							: ((semiMoveNumber + 2) / 2)));
-			System.out.println(String.join(" ",
+			System.out.println(String.join("",
 					(String.join("", Integer.toString(this.moveCounter), isBlackMove ? "...." : ".")),
-					bestMove.getLan(), String.join("", Integer.toString(iterationScore), "cp "),
-					String.join("", Integer.toString(iterationDepth), "depth ",
+					bestMove.getLan()," ",String.join("", Integer.toString(iterationScore), ";"),
+					String.join("", Integer.toString(iterationDepth), ";",
 							Integer.toString(winProbabilityByShashin.getWinProbability(iterationScore, semiMoveNumber)),
-							"Win probability "),
-					getCurrentPositionType()));
+							";"),
+					getAbbreviatePositionType(getCurrentPositionType())));
 		}
 		return lan;
+	}
+	private String getAbbreviatePositionType(String positionType) {
+		return 	String.join("","s-",WinProbabilityByShashin.getAbbreviateRangeDescription(positionType) );
 	}
 
 	private void setShashinUciOptions(String positionType) {

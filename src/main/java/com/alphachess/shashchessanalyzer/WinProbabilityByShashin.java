@@ -32,6 +32,39 @@ public class WinProbabilityByShashin {
 	        return description;
 	    }
 	}
+	public static String getAbbreviateRangeDescription(String rangeDescription) {
+	    switch (rangeDescription) {
+	        case MoveInfo.CAOS_TAL_CAPABLANCA_PETROSIAN:
+	        	return "CTCP";
+	        case MoveInfo.HIGH_PETROSIAN:
+	        	return "HP";
+	        case MoveInfo.HIGH_MIDDLE_PETROSIAN:
+	        	return "MHP";
+	        case MoveInfo.MIDDLE_PETROSIAN:
+	        	return "MP";	
+	        case MoveInfo.MIDDLE_LOW_PETROSIAN:
+	        	return "MLP";
+	        case MoveInfo.LOW_PETROSIAN:
+	        	return "LP";
+	        case MoveInfo.CAOS_PETROSIAN_CAPABLANCA:
+	        	return "CCP";
+	        case MoveInfo.CAPABLANCA:
+	        	return "C";
+	        case MoveInfo.CAOS_TAL_CAPABLANCA:
+	        	return "CCT";
+	        case MoveInfo.LOW_TAL:
+	        	return "LT";
+	        case MoveInfo.LOW_MIDDLE_TAL:
+	        	return RangeDescription.LOW_MIDDLE_TAL.getDescription();
+	        case MoveInfo.MIDDLE_TAL:
+	        	return "MT";
+	        case MoveInfo.MIDDLE_HIGH_TAL:
+	        	return "MHT";
+	        case MoveInfo.HIGH_TAL:
+	        	return "HT";
+	        default: return null;
+	    }
+	}	
 	public String getRangeDescription(int rangeValue) {
 	    Range[] values = Range.values();
 	    Range range=null;
