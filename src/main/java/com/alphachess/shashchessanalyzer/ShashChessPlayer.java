@@ -1,6 +1,7 @@
 package com.alphachess.shashchessanalyzer;
 
 import static java.lang.String.format;
+import static java.util.function.Function.identity;
 import static net.andreinc.neatchess.client.breaks.Break.breakOn;
 
 import java.io.BufferedReader;
@@ -218,6 +219,8 @@ public class ShashChessPlayer {
 	private void closeAll() throws IOException {
 		closeWrite();
 		closeShashChess();
+		System.out.println("Engine closed");
+		System.exit(0);
 		closeGamesReader();
 	}
 
@@ -263,6 +266,8 @@ public class ShashChessPlayer {
 					while ((!iterationChessBoard.isCheckmate() && (getSemiMoveNumber() < getMaxMovesNumber() * 2))
 							&& (!iterationChessBoard.is50MoveRuleApplicible())) {
 						doStep(iterationFen, 1, getMoveCounter(), iterationChessBoard.isBlackMove());
+						closeShashChess();
+						initShashChess();
 						setShashinUciOptions(getCurrentPositionType());
 						iterationFen = getStep2Fen(iterationFen, iterationChessBoard, currentHistory);
 					}
@@ -709,8 +714,6 @@ public class ShashChessPlayer {
 
 	private void closeShashChess() {
 		uci.close();
-		System.out.println("Engine closed");
-		System.exit(0);
 	}
 
 	private void writePgn() {

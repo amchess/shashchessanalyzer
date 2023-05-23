@@ -2,7 +2,7 @@ package com.alphachess.shashchessanalyzer;
 
 public class WinProbabilityByShashin {
 	public static final int MAX_DEPTH = 240;
-	public static final int NORMALIZE_TO_PAWN_VALUE = 394;
+	public static final int NORMALIZE_TO_PAWN_VALUE = 343;
 	
 	public static enum RangeDescription 
 	{
@@ -157,12 +157,12 @@ public class WinProbabilityByShashin {
 	};	
 	public int getWinProbability(long score, int ply) {
 		long value=(long)(score*NORMALIZE_TO_PAWN_VALUE/100);
-		double winrateToMove=(0.5 + 1000 / (1 + Math.exp((((((0.3367760 * (Math.min(240, ply) / 64.0) + -4.30175627) * (Math.min(240, ply) / 64.0) + 33.08810557) * 
-	    		(Math.min(240, ply) / 64.0)) + 365.60223431) - (GenericUtil.clamp((double)(value), -4000.0, 4000.0))) / ((((-2.50471102 * (Math.min(240, ply) / 64.0) + 15.96509799) * 
-	    				(Math.min(240, ply) / 64.0) + -14.33066859) * (Math.min(240, ply) / 64.0)) + 71.42705250))));
-		double winrateOpponent=(int)(0.5 + 1000 / (1 + Math.exp((((((0.3367760 * (Math.min(240, ply) / 64.0) + -4.30175627) * (Math.min(240, ply) / 64.0) + 33.08810557) * 
-	    		(Math.min(240, ply) / 64.0)) + 365.60223431) - (GenericUtil.clamp((double)(-value), -4000.0, 4000.0))) / ((((-2.50471102 * (Math.min(240, ply) / 64.0) + 15.96509799) * 
-	    				(Math.min(240, ply) / 64.0) + -14.33066859) * (Math.min(240, ply) / 64.0)) + 71.42705250))));
+		double winrateToMove=(0.5 + 1000 / (1 + Math.exp((((((1.07390458 * (Math.min(240, ply) / 64.0) + -6.94334517) * (Math.min(240, ply) / 64.0) + 31.95090161) * 
+	    		(Math.min(240, ply) / 64.0)) + 317.75424048) - (GenericUtil.clamp((double)(value), -4000.0, 4000.0))) / ((((-2.82843814 * (Math.min(240, ply) / 64.0) + 16.64518180) * 
+	    				(Math.min(240, ply) / 64.0) + -19.74439200) * (Math.min(240, ply) / 64.0)) + 68.39499088))));
+		double winrateOpponent=(int)(0.5 + 1000 / (1 + Math.exp((((((1.07390458 * (Math.min(240, ply) / 64.0) + -6.94334517) * (Math.min(240, ply) / 64.0) + 31.95090161) * 
+	    		(Math.min(240, ply) / 64.0)) + 317.75424048) - (GenericUtil.clamp((double)(-value), -4000.0, 4000.0))) / ((((-2.82843814 * (Math.min(240, ply) / 64.0) + 16.64518180) * 
+	    				(Math.min(240, ply) / 64.0) -19.74439200) * (Math.min(240, ply) / 64.0)) + 68.39499088))));
 		double  winrateDraw=1000-winrateToMove-winrateOpponent; 
 		double winProbability=Math.round(winrateToMove+winrateDraw/2.0d)/10.0d;
 		return (int)Math.round(winProbability);
