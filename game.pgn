@@ -1,6 +1,6 @@
 [Event "Games from pgn"]
 [Site "LAPTOP-PUMF6SGR"]
-[Date "2023.05.02"]
+[Date "2023.05.04"]
 [Round "1"]
 [White "ShashChess27-x86-64-bmi2"]
 [Black "ShashChess27-x86-64-bmi2"]
@@ -10,14 +10,14 @@
 [ECO "C65"]
 [TimeControl "14+0"]
 
-1.e4 e5 2.Nf3 Nc6 3.Bb5 Nf6 4.O-O {30;35;51;s-CCT} 4...Nxe4 {-20;33;49;s-CCP}
-5.Re1 {21;33;51;s-CCT} 5...Nd6 {-24;36;49;s-CCP} 6.Nxe5 {22;33;51;s-CCT} 6...Be7
-{-28;34;49;s-CCP} 7.Bf1 {25;31;51;s-CCT} 7...Nxe5 {-21;31;49;s-CCP} 8.Rxe5
-{28;34;51;s-CCT} 8...O-O {-23;34;49;s-CCP} *
+1.e4 e5 2.Nf3 Nc6 3.Bb5 Nf6 4.O-O {19;33;51;s-CCT} 4...Nxe4 {-22;32;49;s-CCP}
+5.Re1 {26;34;52;s-CCT} 5...Nd6 {-23;34;49;s-CCP} 6.Nxe5 {27;32;52;s-CCT} 6...Be7
+{-21;32;49;s-CCP} 7.Bf1 {24;32;51;s-CCT} 7...Nxe5 {-21;32;49;s-CCP} 8.Rxe5
+{26;31;51;s-CCT} 8...O-O {-27;32;49;s-CCP} *
 
 [Event "Games from pgn"]
 [Site "LAPTOP-PUMF6SGR"]
-[Date "2023.05.02"]
+[Date "2023.05.04"]
 [Round "1"]
 [White "ShashChess27-x86-64-bmi2"]
 [Black "ShashChess27-x86-64-bmi2"]
@@ -27,14 +27,14 @@
 [ECO "A00"]
 [TimeControl "14+0"]
 
-1.b4 e5 {24;32;51;s-CCT} 2.Bb2 {-24;30;49;s-CCP} 2...Bxb4 {26;31;51;s-CCT}
-3.Bxe5 {-21;31;49;s-CCP} 3...Nf6 {16;30;51;s-CCT} 4.c3 {-7;30;50;s-C} 4...Be7
-{21;28;51;s-CCT} 5.e3 {-21;30;49;s-CCP} 5...d5 {24;28;51;s-CCT} 6.Bxf6
-{-25;30;49;s-CCP} 6...Bxf6 {21;33;51;s-CCT} *
+1.b4 e5 {13;29;51;s-CCT} 2.Bb2 {-14;28;49;s-CCP} 2...Bxb4 {14;31;51;s-CCT}
+3.Bxe5 {-19;30;49;s-CCP} 3...Nf6 {12;28;51;s-CCT} 4.c3 {-19;27;49;s-CCP} 4...Be7
+{25;27;51;s-CCT} 5.Bxf6 {-25;29;49;s-CCP} 5...Bxf6 {35;30;52;s-CCT} 6.d4
+{-25;28;49;s-CCP} 6...c5 {26;27;51;s-CCT} *
 
 [Event "Games from pgn"]
 [Site "LAPTOP-PUMF6SGR"]
-[Date "2023.05.02"]
+[Date "2023.05.04"]
 [Round "1"]
 [White "ShashChess27-x86-64-bmi2"]
 [Black "ShashChess27-x86-64-bmi2"]
@@ -44,8 +44,8 @@
 [ECO "A00"]
 [TimeControl "14+0"]
 
-1.b4 Nh6 2.Nf3 {41;30;53;s-CCT} 2...d5 {-43;29;47;s-CCP} 3.e3 {34;27;52;s-CCT}
-3...Nf5 {-27;28;49;s-CCP} 4.c4 {46;26;53;s-CCT} 4...e6 {-42;28;47;s-CCP} 5.a3
-{46;28;53;s-CCT} 5...Be7 {-42;27;47;s-CCP} 6.Bb2 {37;29;52;s-CCT} 6...O-O
-{-50;29;46;s-CCP} *
+1.b4 Nh6 2.Nf3 {44;27;54;s-CCT} 2...d5 {-36;27;47;s-CCP} 3.Bb2 {38;27;53;s-CCT}
+3...f6 {-45;28;46;s-CCP} 4.e3 {45;26;54;s-CCT} 4...e5 {-31;30;48;s-CCP} 5.c4
+{30;30;52;s-CCT} 5...c6 {-34;27;48;s-CCP} 6.Qb3 {34;28;52;s-CCT} 6...Be6
+{-41;27;47;s-CCP} *
 
