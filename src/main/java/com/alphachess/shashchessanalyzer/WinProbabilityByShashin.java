@@ -55,7 +55,7 @@ public class WinProbabilityByShashin {
 	        case MoveInfo.LOW_TAL:
 	        	return "LT";
 	        case MoveInfo.LOW_MIDDLE_TAL:
-	        	return RangeDescription.LOW_MIDDLE_TAL.getDescription();
+	        	return "LMT";
 	        case MoveInfo.MIDDLE_TAL:
 	        	return "MT";
 	        case MoveInfo.MIDDLE_HIGH_TAL:
