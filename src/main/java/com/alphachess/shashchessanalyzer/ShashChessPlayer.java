@@ -1,9 +1,5 @@
 package com.alphachess.shashchessanalyzer;
 
-import static java.lang.String.format;
-import static java.util.function.Function.identity;
-import static net.andreinc.neatchess.client.breaks.Break.breakOn;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -576,9 +572,7 @@ public class ShashChessPlayer {
 		long currentAverageTimeMSForMove = strongestAverageTimeSecondsForMove * 1000;
 		uci.uciNewGame();
 		uci.positionFen(fen);
-		String goCommand = "go movetime %d";
-		UCIResponse<Analysis> response = uci.command(format(goCommand, (long) currentAverageTimeMSForMove),
-				UCI.analysis::process, breakOn("bestmove"), uci.getDefaultTimeout());
+		UCIResponse<Analysis> response = uci.analysis((long) currentAverageTimeMSForMove);
 		Analysis analysis = response.getResultOrThrow();
 		Move bestMove = analysis.getBestMove();
 		String lan = bestMove.getLan();
