@@ -50,7 +50,7 @@ public class ShashChessAnalyzer {
 	private String engineName;
 	private String searchMoves;
 	private String showEngineInfos;
-    private WinProbabilityByShashin winProbabilityByShashin = new WinProbabilityByShashin();
+	private WinProbabilityByShashin winProbabilityByShashin = new WinProbabilityByShashin();
 	Logger logger = Logger.getLogger(ShashChessAnalyzer.class.getName());
 
 	public ShashChessAnalyzer(String[] args) {
@@ -129,13 +129,18 @@ public class ShashChessAnalyzer {
 		System.out.println(String.join("", "Average time for all moves in seconds: ",
 				Long.toString(currentAverageTimeSecondsForMove / 1000)));
 		uci.uciNewGame();
-		fen=fen.trim();
+		fen = fen.trim();
 		uci.positionFen(fen);
-		String goCommand = (searchMoves != null && !searchMoves.isEmpty())
-				? String.join("", "go movetime %d ", "searchmoves ", searchMoves)
-				: "go movetime %d";
-		UCIResponse<Analysis> response = uci.command(format(goCommand, (long) currentAverageTimeSecondsForMove),
-				UCI.analysis::process, breakOn("bestmove"), uci.getDefaultTimeout());
+		UCIResponse<Analysis> response = null;
+		if (searchMoves != null && !searchMoves.isEmpty()) {
+			response = uci.analysis((long) currentAverageTimeSecondsForMove);
+		} else {
+			String goCommand = (searchMoves != null && !searchMoves.isEmpty())
+					? String.join("", "go movetime %d ", "searchmoves ", searchMoves)
+					: "go movetime %d";
+			response = uci.command(format(goCommand, (long) currentAverageTimeSecondsForMove), UCI.analysis::process,
+					breakOn("bestmove"), uci.getDefaultTimeout());
+		}
 		Analysis analysis = response.getResultOrThrow();
 		/*
 		 * Move bestMove = analysis.getBestMove(); System.out.println(String.join("",
@@ -146,23 +151,23 @@ public class ShashChessAnalyzer {
 		 * System.out.println(String.join("", "Position type: ", positionType));
 		 */
 		// Possible best moves
-		Map<Integer, Move> moves = analysis.getAllMoves(); 
+		Map<Integer, Move> moves = analysis.getAllMoves();
 		Move bestMove = moves.get(1);
 		System.out.println(String.join("", "Best move: ", bestMove.toString()));
 		int score = ((Double) (bestMove.getStrength().getScore() * 100)).intValue();
 		System.out.println(String.join("", "Score: ", Integer.toString(score), "cp"));
-		int currentMoveNumber=0;
+		int currentMoveNumber = 0;
 		try {
-			currentMoveNumber = ((ChessBoard)(new FEN().stringToBoard(fen))).getCurrentMoveNumber();
-			
+			currentMoveNumber = ((ChessBoard) (new FEN().stringToBoard(fen))).getCurrentMoveNumber();
+
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		String positionType = getPositionType(score,currentMoveNumber);
-		System.out.println(String.join("", "Position type: ", positionType));        
-		String winProbability = Integer.toString(winProbabilityByShashin.getWinProbability(score,currentMoveNumber));
-		System.out.println(String.join("", "Win Probability: ", winProbability));        
+		String positionType = getPositionType(score, currentMoveNumber);
+		System.out.println(String.join("", "Position type: ", positionType));
+		String winProbability = Integer.toString(winProbabilityByShashin.getWinProbability(score, currentMoveNumber));
+		System.out.println(String.join("", "Win Probability: ", winProbability));
 
 		moves.forEach((idx, move) -> {
 			System.out.println(String.join("", "\t" + move));
