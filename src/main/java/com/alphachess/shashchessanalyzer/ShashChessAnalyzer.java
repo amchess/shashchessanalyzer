@@ -132,7 +132,7 @@ public class ShashChessAnalyzer {
 		fen = fen.trim();
 		uci.positionFen(fen);
 		UCIResponse<Analysis> response = null;
-		if (searchMoves != null && !searchMoves.isEmpty()) {
+		if (searchMoves == null || searchMoves.isEmpty()) {
 			response = uci.analysis((long) currentAverageTimeSecondsForMove);
 		} else {
 			String goCommand = (searchMoves != null && !searchMoves.isEmpty())
