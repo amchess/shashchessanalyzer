@@ -92,9 +92,9 @@ public class ShashChessPlayer {
 	private PGNWriter pgnWriter = null;
 	private PrintWriter pw = null;
 	private WinProbabilityByShashin winProbabilityByShashin = new WinProbabilityByShashin();
-	private boolean blackCastleable=true;
-	private boolean whiteCastleable=true;
-	
+	private boolean blackCastleable = true;
+	private boolean whiteCastleable = true;
+
 	private static final Logger logger = Logger.getLogger(ShashChessPlayer.class.getName());
 
 	public ShashChessPlayer(String[] args) {
@@ -438,16 +438,16 @@ public class ShashChessPlayer {
 							: ((semiMoveNumber + 1) / 2)));
 		}
 		ChessAnnotation iterationChessMoveAnnotation = new ChessAnnotation();
-		iterationChessMoveAnnotation.setComment(String.join("", Integer.toString(getIterationScore()), ";",
-				Integer.toString(getIterationDepth()), ";",
-				Integer.toString(winProbabilityByShashin.getWinProbability(getIterationScore(),
-						iterationChessBoard.getCurrentMoveNumber())),
-				";", getAbbreviatePositionType(getCurrentPositionType())));
+		iterationChessMoveAnnotation.setComment(
+				String.join("", Integer.toString(getIterationScore()), ";", Integer.toString(getIterationDepth()), ";",
+						Integer.toString(winProbabilityByShashin.getWinProbability(getIterationScore(),
+								iterationChessBoard.getCurrentMoveNumber())),
+						";", getAbbreviatePositionType(getCurrentPositionType())));
 		iterationChessMove.setAnnotation(iterationChessMoveAnnotation);
 
 		ChessPiece iterationChessMoveUnit = iterationChessMove.getChessPiece();
 		setCasteable(iterationChessBoard, iterationChessMove, iterationChessMoveUnit);
-		
+
 		setCurrentFen(getFen().boardToString(iterationChessBoard));
 		if (getCurrentFen() != null) {
 			iterationFen = getCurrentFen().trim();
@@ -466,18 +466,17 @@ public class ShashChessPlayer {
 
 	private void setCasteableWhite(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
 			ChessPiece iterationChessMoveUnit, boolean isBlackIterationChessMoveUnit) {
-		if(isWhiteCastleable()) {
-			if (iterationChessMoveUnit.isKing()&&!isBlackIterationChessMoveUnit)
-			{
+		if (isWhiteCastleable()) {
+			if (iterationChessMoveUnit.isKing() && !isBlackIterationChessMoveUnit) {
 				iterationChessBoard.setWhiteCastleableKingside(false);
 				iterationChessBoard.setWhiteCastleableQueenside(false);
 			}
-			if(iterationChessMoveUnit.isRook()&&(iterationChessMove.getOrigin().toString().equals("a1"))&&(!isBlackIterationChessMoveUnit))
-			{
+			if (iterationChessMoveUnit.isRook() && (iterationChessMove.getOrigin().toString().equals("a1"))
+					&& (!isBlackIterationChessMoveUnit)) {
 				iterationChessBoard.setWhiteCastleableQueenside(false);
 			}
-			if(iterationChessMoveUnit.isRook()&&(iterationChessMove.getOrigin().toString().equals("h1"))&&(!isBlackIterationChessMoveUnit))
-			{
+			if (iterationChessMoveUnit.isRook() && (iterationChessMove.getOrigin().toString().equals("h1"))
+					&& (!isBlackIterationChessMoveUnit)) {
 				iterationChessBoard.setWhiteCastleableKingside(false);
 			}
 		}
@@ -485,18 +484,17 @@ public class ShashChessPlayer {
 
 	private void setCasteableBlack(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
 			ChessPiece iterationChessMoveUnit, boolean isBlackIterationChessMoveUnit) {
-		if(isBlackCastleable()) {
-			if (iterationChessMoveUnit.isKing()&&isBlackIterationChessMoveUnit)
-			{
+		if (isBlackCastleable()) {
+			if (iterationChessMoveUnit.isKing() && isBlackIterationChessMoveUnit) {
 				iterationChessBoard.setBlackCastleableKingside(false);
 				iterationChessBoard.setBlackCastleableQueenside(false);
 			}
-			if(iterationChessMoveUnit.isRook()&&(iterationChessMove.getOrigin().toString().equals("a8"))&&isBlackIterationChessMoveUnit)
-			{
+			if (iterationChessMoveUnit.isRook() && (iterationChessMove.getOrigin().toString().equals("a8"))
+					&& isBlackIterationChessMoveUnit) {
 				iterationChessBoard.setBlackCastleableQueenside(false);
 			}
-			if(iterationChessMoveUnit.isRook()&&(iterationChessMove.getOrigin().toString().equals("h8"))&&isBlackIterationChessMoveUnit)
-			{
+			if (iterationChessMoveUnit.isRook() && (iterationChessMove.getOrigin().toString().equals("h8"))
+					&& isBlackIterationChessMoveUnit) {
 				iterationChessBoard.setBlackCastleableKingside(false);
 			}
 		}
@@ -585,7 +583,7 @@ public class ShashChessPlayer {
 							: ((semiMoveNumber + 2) / 2)));
 			System.out.println(String.join("",
 					(String.join("", Integer.toString(this.moveCounter), isBlackMove ? "...." : ".")),
-					bestMove.getLan()," ",String.join("", Integer.toString(iterationScore), ";"),
+					bestMove.getLan(), " ", String.join("", Integer.toString(iterationScore), ";"),
 					String.join("", Integer.toString(iterationDepth), ";",
 							Integer.toString(winProbabilityByShashin.getWinProbability(iterationScore, semiMoveNumber)),
 							";"),
@@ -593,8 +591,9 @@ public class ShashChessPlayer {
 		}
 		return lan;
 	}
+
 	private String getAbbreviatePositionType(String positionType) {
-		return 	String.join("","s-",WinProbabilityByShashin.getAbbreviateRangeDescription(positionType) );
+		return String.join("", "s-", WinProbabilityByShashin.getAbbreviateRangeDescription(positionType));
 	}
 
 	private void setShashinUciOptions(String positionType) {
@@ -1107,6 +1106,5 @@ public class ShashChessPlayer {
 	public void setPw(PrintWriter pw) {
 		this.pw = pw;
 	}
-
 
 }
