@@ -262,16 +262,20 @@ public class ShashChessPlayer {
 					while ((!iterationChessBoard.isCheckmate() && (getSemiMoveNumber() < getMaxMovesNumber() * 2))
 							&& (!iterationChessBoard.is50MoveRuleApplicible())) {
 						doStep(iterationFen, 1, getMoveCounter(), iterationChessBoard.isBlackMove());
-						closeShashChess();
-						initShashChess();
+						restartShashChess();
 						setShashinUciOptions(getCurrentPositionType());
 						iterationFen = getStep2Fen(iterationFen, iterationChessBoard, currentHistory);
+						restartShashChess();
 					}
-
 				}
 			}
 			writeCurrentGame();
 		}
+	}
+
+	private void restartShashChess() {
+		closeShashChess();
+		initShashChess();
 	}
 
 	private void writeCurrentGame() throws IOException {
