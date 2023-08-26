@@ -22,6 +22,7 @@ import ictk.boardgame.History;
 import ictk.boardgame.IllegalMoveException;
 import ictk.boardgame.OutOfTurnException;
 import ictk.boardgame.Result;
+import ictk.boardgame.chess.AmbiguousChessMoveException;
 import ictk.boardgame.chess.Bishop;
 import ictk.boardgame.chess.ChessBoard;
 import ictk.boardgame.chess.ChessGame;
@@ -38,6 +39,7 @@ import ictk.boardgame.chess.io.ChessAnnotation;
 import ictk.boardgame.chess.io.FEN;
 import ictk.boardgame.chess.io.PGNReader;
 import ictk.boardgame.chess.io.PGNWriter;
+import ictk.boardgame.chess.io.SAN;
 import ictk.boardgame.io.InvalidGameFormatException;
 import net.andreinc.neatchess.client.UCI;
 import net.andreinc.neatchess.client.UCIResponse;
@@ -262,7 +264,6 @@ public class ShashChessPlayer {
 					while ((!iterationChessBoard.isCheckmate() && (getSemiMoveNumber() < getMaxMovesNumber() * 2))
 							&& (!iterationChessBoard.is50MoveRuleApplicible())) {
 						doStep(iterationFen, 1, getMoveCounter(), iterationChessBoard.isBlackMove());
-						restartShashChess();
 						setShashinUciOptions(getCurrentPositionType());
 						iterationFen = getStep2Fen(iterationFen, iterationChessBoard, currentHistory);
 						restartShashChess();
@@ -550,13 +551,23 @@ public class ShashChessPlayer {
 		boolean isKingWhite = whiteOccupant != null ? whiteOccupant.isKing() : false;
 		ChessPiece blackOccupant = iterationChessBoard.getSquare(5, 8).getOccupant();
 		boolean isKingBlack = blackOccupant != null ? blackOccupant.isKing() : false;
-		if ((isKingWhite && ((origSquareStr.equals("e1") && destSquareStr.equals("g1")))
-				|| (isKingBlack && origSquareStr.equals("e8") && destSquareStr.equals("g8")))) {
-			currentChessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_KINGSIDE);
+		if ((isKingWhite && origSquareStr.equals("e1") && destSquareStr.equals("g1"))
+				|| (isKingBlack && origSquareStr.equals("e8") && destSquareStr.equals("g8"))) {
+			try {
+				currentChessMove = (ChessMove)(new SAN().stringToMove(iterationChessBoard, "O-O"));
+			} catch (AmbiguousChessMoveException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} 
 		}
-		if (isKingWhite && ((origSquareStr.equals("e1") && destSquareStr.equals("c1"))
-				|| (isKingBlack && origSquareStr.equals("e8") && destSquareStr.equals("c8")))) {
-			currentChessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_QUEENSIDE);
+		if ((isKingWhite && origSquareStr.equals("e1") && destSquareStr.equals("c1"))
+				|| (isKingBlack && origSquareStr.equals("e8") && destSquareStr.equals("c8"))) {
+			try {
+				currentChessMove = (ChessMove)(new SAN().stringToMove(iterationChessBoard, "O-O-O"));
+			} catch (AmbiguousChessMoveException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} 
 		}
 		return currentChessMove;
 	}
