@@ -22,7 +22,6 @@ import ictk.boardgame.History;
 import ictk.boardgame.IllegalMoveException;
 import ictk.boardgame.OutOfTurnException;
 import ictk.boardgame.Result;
-import ictk.boardgame.chess.AmbiguousChessMoveException;
 import ictk.boardgame.chess.Bishop;
 import ictk.boardgame.chess.ChessBoard;
 import ictk.boardgame.chess.ChessGame;
@@ -34,12 +33,10 @@ import ictk.boardgame.chess.ChessResult;
 import ictk.boardgame.chess.Knight;
 import ictk.boardgame.chess.Queen;
 import ictk.boardgame.chess.Rook;
-import ictk.boardgame.chess.Square;
 import ictk.boardgame.chess.io.ChessAnnotation;
 import ictk.boardgame.chess.io.FEN;
 import ictk.boardgame.chess.io.PGNReader;
 import ictk.boardgame.chess.io.PGNWriter;
-import ictk.boardgame.chess.io.SAN;
 import ictk.boardgame.io.InvalidGameFormatException;
 import net.andreinc.neatchess.client.UCI;
 import net.andreinc.neatchess.client.UCIResponse;
@@ -409,31 +406,34 @@ public class ShashChessPlayer {
 
 	private String getStep2Fen(String iterationFen, ChessBoard iterationChessBoard, History currentHistory)
 			throws IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
-		String lan2 = doStep(iterationFen, 2, getMoveCounter(), iterationChessBoard.isBlackMove());
-		if (lan2 != null) {
-			String origSquareStr = lan2.substring(0, 2);
-			Square origSquare = iterationChessBoard.getSquare((byte) (origSquareStr.charAt(0) - 96),
-					Byte.parseByte(origSquareStr.substring(1)));
-			String destSquareStr = lan2.substring(2, 4);
-			Square destSquare = iterationChessBoard.getSquare((byte) (destSquareStr.charAt(0) - 96),
-					Byte.parseByte(destSquareStr.substring(1)));
-			if ((origSquareStr != null) && (origSquare != null) && (destSquareStr != null) && (destSquare != null)) {
-				iterationFen = getCurrentIterationFen(iterationChessBoard, currentHistory, lan2, origSquareStr,
-						origSquare, destSquareStr, destSquare);
-			}
+		String lan = doStep(iterationFen, 2, getMoveCounter(), iterationChessBoard.isBlackMove());
+		if (lan != null) {
+			iterationFen = getCurrentIterationFen(iterationChessBoard, currentHistory, lan);
 		}
+
 		return iterationFen;
 	}
 
-	private String getCurrentIterationFen(ChessBoard iterationChessBoard, History currentHistory, String lan2,
-			String origSquareStr, Square origSquare, String destSquareStr, Square destSquare)
+	private String getCurrentIterationFen(ChessBoard iterationChessBoard, History currentHistory, String lan)
 			throws IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
+		String moveOriginSquareCoordinates = lan.substring(0, 2);
+		String moveDestinationSquareCoordinates = lan.substring(2, 4);
+		byte moveOriginSquareFile = (byte) (moveOriginSquareCoordinates.charAt(0) - 96);
+		byte moveOriginSquareRank = Byte.parseByte(moveOriginSquareCoordinates.substring(1));
+		byte moveDestinationSquareFile = (byte) (moveDestinationSquareCoordinates.charAt(0) - 96);
+		byte moveDestinationSquareRank = Byte.parseByte(moveDestinationSquareCoordinates.substring(1));
 		String iterationFen = null;
+
 		ChessMove iterationChessMove = null;
-		iterationChessMove = getPromotionMove(iterationChessBoard, lan2, origSquare, destSquare, iterationChessMove);
-		iterationChessMove = getCastleMove(iterationChessBoard, origSquareStr, destSquareStr, iterationChessMove);
+		iterationChessMove = getPromotionChessMove(iterationChessBoard, lan, moveOriginSquareFile, moveOriginSquareRank,
+				moveDestinationSquareFile, moveDestinationSquareRank, iterationChessMove);
 		if (iterationChessMove == null) {
-			iterationChessMove = new ChessMove(iterationChessBoard, origSquare, destSquare);
+			iterationChessMove = getCastleChessMove(iterationChessBoard, moveOriginSquareCoordinates,
+					moveDestinationSquareCoordinates, iterationChessMove);
+		}
+		if (iterationChessMove == null) {
+			iterationChessMove = new ChessMove(iterationChessBoard, moveOriginSquareFile, moveOriginSquareRank,
+					moveDestinationSquareFile, moveDestinationSquareRank);
 		}
 		if (iterationChessMove != null) {
 			currentHistory.add(iterationChessMove);
@@ -458,6 +458,34 @@ public class ShashChessPlayer {
 			iterationFen = getCurrentFen().trim();
 		}
 		return iterationFen;
+	}
+
+	private ChessMove getPromotionChessMove(ChessBoard iterationChessBoard, String lan, byte moveOriginSquareFile,
+			byte moveOriginSquareRank, byte moveDestinationSquareFile, byte moveDestinationSquareRank,
+			ChessMove chessMove) throws IllegalMoveException {
+		if (lan.length() == 5) {
+			char promotionUnit = lan.substring(4, 5).charAt(0);
+			int promo = 0;
+			switch (promotionUnit) {
+			case 'q':
+				promo = Queen.INDEX;
+				break;
+			case 'r':
+				promo = Rook.INDEX;
+				break;
+			case 'b':
+				promo = Bishop.INDEX;
+				break;
+			case 'n':
+				promo = Knight.INDEX;
+				break;
+			default:
+				break;
+			}
+			chessMove = new ChessMove(iterationChessBoard, moveOriginSquareFile, moveOriginSquareRank,
+					moveDestinationSquareFile, moveDestinationSquareRank, promo);
+		}
+		return chessMove;
 	}
 
 	private void setCasteable(ChessBoard iterationChessBoard, ChessMove iterationChessMove,
@@ -504,72 +532,22 @@ public class ShashChessPlayer {
 			}
 		}
 	}
-
-	private ChessMove getCastleMove(ChessBoard iterationChessBoard, String origSquareStr, String destSquareStr,
-			ChessMove iterationChessMove) throws IllegalMoveException {
-		if (iterationChessMove == null) {
-			iterationChessMove = getCastleMove(origSquareStr, destSquareStr, iterationChessMove, iterationChessBoard);
+	private ChessMove getCastleChessMove(ChessBoard iterationChessBoard, String moveOriginSquareCoordinates,
+			String moveDestinationSquareCoordinates, ChessMove chessMove) throws IllegalMoveException {
+		ChessPiece e1Occupant=iterationChessBoard.getSquare(5, 1).getOccupant();
+		boolean ise1WhiteKing=((e1Occupant!=null)&&(e1Occupant.isKing())&&(!e1Occupant.isBlack()))?true:false;
+		ChessPiece e8Occupant=iterationChessBoard.getSquare(5, 8).getOccupant();
+		boolean ise8BlackKing=((e8Occupant!=null)&&(e8Occupant.isKing())&&(e8Occupant.isBlack()))?true:false;
+		
+		if ((moveOriginSquareCoordinates.equals("e1") && moveDestinationSquareCoordinates.equals("g1")&&ise1WhiteKing)
+				|| (moveOriginSquareCoordinates.equals("e8") && moveDestinationSquareCoordinates.equals("g8")&&ise8BlackKing)) {
+			chessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_KINGSIDE);
 		}
-		return iterationChessMove;
-	}
-
-	private ChessMove getPromotionMove(ChessBoard iterationChessBoard, String lan2, Square origSquare,
-			Square destSquare, ChessMove iterationChessMove) throws IllegalMoveException {
-		if (lan2.length() == 5) {
-			char promotionUnit = lan2.substring(4, 5).charAt(0);
-			iterationChessMove = getPromotionMove(origSquare, destSquare, iterationChessBoard, promotionUnit);
+		if ((moveOriginSquareCoordinates.equals("e1") && moveDestinationSquareCoordinates.equals("c1") &&ise1WhiteKing)
+				|| (moveOriginSquareCoordinates.equals("e8") && moveDestinationSquareCoordinates.equals("c8")&&ise8BlackKing)) {
+			chessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_QUEENSIDE);
 		}
-		return iterationChessMove;
-	}
-
-	private ChessMove getPromotionMove(Square origSquare, Square destSquare, ChessBoard chessBoard, char promotionUnit)
-			throws IllegalMoveException {
-		int promo = 0;
-		switch (promotionUnit) {
-		case 'q':
-			promo = Queen.INDEX;
-			break;
-		case 'r':
-			promo = Rook.INDEX;
-			break;
-		case 'b':
-			promo = Bishop.INDEX;
-			break;
-		case 'n':
-			promo = Knight.INDEX;
-			break;
-		default:
-			break;
-		}
-		return new ChessMove(chessBoard, origSquare.getFile(), origSquare.getRank(), destSquare.getFile(),
-				destSquare.getRank(), promo);
-	}
-
-	private ChessMove getCastleMove(String origSquareStr, String destSquareStr, ChessMove currentChessMove,
-			ChessBoard iterationChessBoard) throws IllegalMoveException {
-		ChessPiece whiteOccupant = iterationChessBoard.getSquare(5, 1).getOccupant();
-		boolean isKingWhite = whiteOccupant != null ? whiteOccupant.isKing() : false;
-		ChessPiece blackOccupant = iterationChessBoard.getSquare(5, 8).getOccupant();
-		boolean isKingBlack = blackOccupant != null ? blackOccupant.isKing() : false;
-		if ((isKingWhite && origSquareStr.equals("e1") && destSquareStr.equals("g1"))
-				|| (isKingBlack && origSquareStr.equals("e8") && destSquareStr.equals("g8"))) {
-			try {
-				currentChessMove = (ChessMove)(new SAN().stringToMove(iterationChessBoard, "O-O"));
-			} catch (AmbiguousChessMoveException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} 
-		}
-		if ((isKingWhite && origSquareStr.equals("e1") && destSquareStr.equals("c1"))
-				|| (isKingBlack && origSquareStr.equals("e8") && destSquareStr.equals("c8"))) {
-			try {
-				currentChessMove = (ChessMove)(new SAN().stringToMove(iterationChessBoard, "O-O-O"));
-			} catch (AmbiguousChessMoveException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} 
-		}
-		return currentChessMove;
+		return chessMove;
 	}
 
 	private void initShashChess() {
