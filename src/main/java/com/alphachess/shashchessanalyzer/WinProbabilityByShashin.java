@@ -2,7 +2,7 @@ package com.alphachess.shashchessanalyzer;
 
 public class WinProbabilityByShashin {
 	public static final int MAX_DEPTH = 240;
-	public static final int NORMALIZE_TO_PAWN_VALUE = 328;
+	public static final int NORMALIZE_TO_PAWN_VALUE = 345;
 	
 	public static enum RangeDescription 
 	{
@@ -157,12 +157,12 @@ public class WinProbabilityByShashin {
 	};	
 	public int getWinProbability(long score, int ply) {
 		long value=(long)(score*NORMALIZE_TO_PAWN_VALUE/100);
-		double winrateToMove=(0.5 + 1000 / (1 + Math.exp((((((0.38036525 * (Math.min(240, ply) / 64.0) + -2.82015070) * (Math.min(240, ply) / 64.0) + 23.17882135) * 
-	    		(Math.min(240, ply) / 64.0)) + 307.36768407) - (GenericUtil.clamp((double)(value), -4000.0, 4000.0))) / ((((-2.29434733 * (Math.min(240, ply) / 64.0) + 13.27689788) * 
-	    				(Math.min(240, ply) / 64.0) + -14.26828904) * (Math.min(240, ply) / 64.0)) + 63.45318330))));
-		double winrateOpponent=(int)(0.5 + 1000 / (1 + Math.exp((((((0.38036525 * (Math.min(240, ply) / 64.0) + -2.82015070) * (Math.min(240, ply) / 64.0) + 23.17882135) * 
-	    		(Math.min(240, ply) / 64.0)) + 307.36768407) - (GenericUtil.clamp((double)(-value), -4000.0, 4000.0))) / ((((-2.29434733 * (Math.min(240, ply) / 64.0) + 13.27689788) * 
-	    				(Math.min(240, ply) / 64.0) -14.26828904) * (Math.min(240, ply) / 64.0)) + 63.45318330))));
+		double winrateToMove=(0.5 + 1000 / (1 + Math.exp((((((-2.00568292 * (GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0) + 10.45906746) * (GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0) + 1.67438883) * 
+	    		(GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0)) + 334.45864705) - (double)(value)) / ((((-4.97134419 * (GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0) + 36.15096345) * 
+	    				(GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0) + -82.25513499) * (GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0)) + 117.35186805))));
+		double winrateOpponent=(int)(0.5 + 1000 / (1 + Math.exp((((((-2.00568292 * (GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0) + 10.45906746) * (GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0) + 1.67438883) * 
+	    		(GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0)) + 334.45864705) - (GenericUtil.clamp((double)(-value), -4000.0, 4000.0))) / ((((-4.97134419 * (GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0) + 36.15096345) * 
+	    				(GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0) -82.25513499) * (GenericUtil.clamp((double)(ply / 2 + 1), 8, 120) / 32.0)) + 117.35186805))));
 		double  winrateDraw=1000-winrateToMove-winrateOpponent; 
 		double winProbability=Math.round(winrateToMove+winrateDraw/2.0d)/10.0d;
 		return (int)Math.round(winProbability);
