@@ -124,6 +124,23 @@ public class ShashChessAnalyzer {
 		}
 	}
 
+	private int getPlayedHalfMovesNumber(String fen) {
+		int playedHalfMovesNumber = -1;
+		String[] fenParts = fen.split("\\s+");
+		// The half-move number is the fifth element in the FEN string
+		String movesNumberStr = fenParts[5];
+		String color = fenParts[1];
+		try {
+			int movesNumber = Integer.parseInt(movesNumberStr);
+			playedHalfMovesNumber = color.equals("w") ? (int) ((movesNumber - 1) / 2) : ((movesNumber - 1) / 2) + 1;
+		} catch (NumberFormatException e) {
+			// Handle the case where the half-move number is not a valid integer
+			logger.info("Invalid half-move number in FEN: " + movesNumberStr);
+			return playedHalfMovesNumber;
+		}
+		return playedHalfMovesNumber;
+	}
+
 	private void analyzePosition(int timeMultiplier) {
 		long currentAverageTimeSecondsForMove = strongestAverageTimeSecondsForMove * 1000 * timeMultiplier * multiPV;
 		System.out.println(String.join("", "Average time for all moves in seconds: ",
@@ -138,7 +155,7 @@ public class ShashChessAnalyzer {
 			String goCommand = (searchMoves != null && !searchMoves.isEmpty())
 					? String.join("", "go movetime %d ", "searchmoves ", searchMoves)
 					: "go movetime %d";
-			response = uci.command(format(goCommand, (long) currentAverageTimeSecondsForMove), UCI.analysis::process,
+			response = uci.command(format(goCommand, currentAverageTimeSecondsForMove), UCI.analysis::process,
 					breakOn("bestmove"), uci.getDefaultTimeout());
 		}
 		Analysis analysis = response.getResultOrThrow();
@@ -156,17 +173,10 @@ public class ShashChessAnalyzer {
 		System.out.println(String.join("", "Best move: ", bestMove.toString()));
 		int score = ((Double) (bestMove.getStrength().getScore() * 100)).intValue();
 		System.out.println(String.join("", "Score: ", Integer.toString(score), "cp"));
-		int currentMoveNumber = 0;
-		try {
-			currentMoveNumber = ((ChessBoard) (new FEN().stringToBoard(fen))).getCurrentMoveNumber();
-
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		String positionType = getPositionType(score, currentMoveNumber);
+		int playedHalfMovesNumber=getPlayedHalfMovesNumber(fen);
+		String positionType = getPositionType(score, playedHalfMovesNumber);
 		System.out.println(String.join("", "Position type: ", positionType));
-		String winProbability = Integer.toString(winProbabilityByShashin.getWinProbability(score, currentMoveNumber));
+		String winProbability = Integer.toString(winProbabilityByShashin.getWinProbability(score, playedHalfMovesNumber));
 		System.out.println(String.join("", "Win Probability: ", winProbability));
 
 		moves.forEach((idx, move) -> {

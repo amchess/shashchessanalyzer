@@ -323,6 +323,23 @@ public class ShashChessPlayer {
 		return pgnReader;
 	}
 
+	private int getPlayedHalfMovesNumber(String fen) {
+		int playedHalfMovesNumber = -1;
+		String[] fenParts = fen.split("\\s+");
+		// The half-move number is the fifth element in the FEN string
+		String movesNumberStr = fenParts[5];
+		String color = fenParts[1];
+		try {
+			int movesNumber = Integer.parseInt(movesNumberStr);
+			playedHalfMovesNumber = color.equals("w") ? (int) ((movesNumber - 1) / 2) : ((movesNumber - 1) / 2) + 1;
+		} catch (NumberFormatException e) {
+			// Handle the case where the half-move number is not a valid integer
+			logger.info("Invalid half-move number in FEN: " + movesNumberStr);
+			return playedHalfMovesNumber;
+		}
+		return playedHalfMovesNumber;
+	}
+
 	private ChessResult getGameResult(int finalScore, String finalFen) {
 		ChessBoard finalChessBoard = null;
 		try {
@@ -331,7 +348,7 @@ public class ShashChessPlayer {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		int gamePly = finalChessBoard.getCurrentMoveNumber();
+		int gamePly = getPlayedHalfMovesNumber(finalFen);
 		int winProbability = winProbabilityByShashin.getWinProbability(finalScore, gamePly);
 		int rangeValue = winProbabilityByShashin.getRange(winProbability);
 		ChessResult gameResult = new ChessResult(Result.UNDECIDED);
@@ -443,10 +460,11 @@ public class ShashChessPlayer {
 							: ((semiMoveNumber + 1) / 2)));
 		}
 		ChessAnnotation iterationChessMoveAnnotation = new ChessAnnotation();
+		iterationFen=new FEN().boardToString(iterationChessBoard);
 		iterationChessMoveAnnotation.setComment(
 				String.join("", Integer.toString(getIterationScore()), ";", Integer.toString(getIterationDepth()), ";",
 						Integer.toString(winProbabilityByShashin.getWinProbability(getIterationScore(),
-								iterationChessBoard.getCurrentMoveNumber())),
+								getPlayedHalfMovesNumber(iterationFen))),
 						";", getAbbreviatePositionType(getCurrentPositionType())));
 		iterationChessMove.setAnnotation(iterationChessMoveAnnotation);
 
@@ -532,19 +550,24 @@ public class ShashChessPlayer {
 			}
 		}
 	}
+
 	private ChessMove getCastleChessMove(ChessBoard iterationChessBoard, String moveOriginSquareCoordinates,
 			String moveDestinationSquareCoordinates, ChessMove chessMove) throws IllegalMoveException {
-		ChessPiece e1Occupant=iterationChessBoard.getSquare(5, 1).getOccupant();
-		boolean ise1WhiteKing=((e1Occupant!=null)&&(e1Occupant.isKing())&&(!e1Occupant.isBlack()))?true:false;
-		ChessPiece e8Occupant=iterationChessBoard.getSquare(5, 8).getOccupant();
-		boolean ise8BlackKing=((e8Occupant!=null)&&(e8Occupant.isKing())&&(e8Occupant.isBlack()))?true:false;
-		
-		if ((moveOriginSquareCoordinates.equals("e1") && moveDestinationSquareCoordinates.equals("g1")&&ise1WhiteKing)
-				|| (moveOriginSquareCoordinates.equals("e8") && moveDestinationSquareCoordinates.equals("g8")&&ise8BlackKing)) {
+		ChessPiece e1Occupant = iterationChessBoard.getSquare(5, 1).getOccupant();
+		boolean ise1WhiteKing = ((e1Occupant != null) && (e1Occupant.isKing()) && (!e1Occupant.isBlack())) ? true
+				: false;
+		ChessPiece e8Occupant = iterationChessBoard.getSquare(5, 8).getOccupant();
+		boolean ise8BlackKing = ((e8Occupant != null) && (e8Occupant.isKing()) && (e8Occupant.isBlack())) ? true
+				: false;
+
+		if ((moveOriginSquareCoordinates.equals("e1") && moveDestinationSquareCoordinates.equals("g1") && ise1WhiteKing)
+				|| (moveOriginSquareCoordinates.equals("e8") && moveDestinationSquareCoordinates.equals("g8")
+						&& ise8BlackKing)) {
 			chessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_KINGSIDE);
 		}
-		if ((moveOriginSquareCoordinates.equals("e1") && moveDestinationSquareCoordinates.equals("c1") &&ise1WhiteKing)
-				|| (moveOriginSquareCoordinates.equals("e8") && moveDestinationSquareCoordinates.equals("c8")&&ise8BlackKing)) {
+		if ((moveOriginSquareCoordinates.equals("e1") && moveDestinationSquareCoordinates.equals("c1") && ise1WhiteKing)
+				|| (moveOriginSquareCoordinates.equals("e8") && moveDestinationSquareCoordinates.equals("c8")
+						&& ise8BlackKing)) {
 			chessMove = new ChessMove(iterationChessBoard, ChessMove.CASTLE_QUEENSIDE);
 		}
 		return chessMove;
