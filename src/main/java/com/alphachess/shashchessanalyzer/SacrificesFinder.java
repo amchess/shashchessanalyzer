@@ -32,9 +32,11 @@ import net.andreinc.neatchess.client.model.option.EngineOption;
  * Hello world!
  *
  */
-public class PsychologicalSacrificesFinder {
+public class SacrificesFinder {
+	private static final int PSYCHOLOGICAL_THRESHOLD = 2;
+	private static final int REAL_THRESHOLD = 0;
 	UCI uci = null;
-	private Properties psychologicalSacrificesFinderProperties;
+	private Properties sacrificesFinderProperties;
 	private int threadsNumber;
 	private int hashSizeMB;
 	private int cpuMhz;
@@ -54,46 +56,47 @@ public class PsychologicalSacrificesFinder {
 	private String engineName;
 	private String searchMoves;
 	private String showEngineInfos;
+	private String psychological;
 	private WinProbabilityByShashin winProbabilityByShashin = new WinProbabilityByShashin();
-	private static Logger logger = Logger.getLogger(PsychologicalSacrificesFinder.class.getName());
+	private static Logger logger = Logger.getLogger(SacrificesFinder.class.getName());
 
-	public PsychologicalSacrificesFinder(String[] args) {
-		psychologicalSacrificesFinderProperties = getpsychologicalSacrificesFinderProperties(args);
+	public SacrificesFinder(String sacrificesFinderPropertiesPath, String fen) {
+		sacrificesFinderProperties = getSacrificesFinderProperties(sacrificesFinderPropertiesPath);
+		this.fen = fen;
 		setInputParameters();
 		setTimeoutMS(timeoutSeconds * 1000);
 		uci = new UCI(timeoutMS);
 	}
 
 	private void setInputParameters() {
-		setTimeoutSeconds(Long.parseLong(psychologicalSacrificesFinderProperties.getProperty("timeoutSeconds")));
-		setThreadsNumber(Integer.parseInt(psychologicalSacrificesFinderProperties.getProperty("threadsNumber")));
-		setCpuMhz(Integer.parseInt(psychologicalSacrificesFinderProperties.getProperty("cpuMhz")));
-		setHashSizeMB(Integer.parseInt(psychologicalSacrificesFinderProperties.getProperty("hashSizeMB")));
-		setSyzygyPath(psychologicalSacrificesFinderProperties.getProperty("syzygyPath"));
-		setSyzygyProbeDepth(psychologicalSacrificesFinderProperties.getProperty("syzygyProbeDepth"));
+		setTimeoutSeconds(Long.parseLong(sacrificesFinderProperties.getProperty("timeoutSeconds")));
+		setThreadsNumber(Integer.parseInt(sacrificesFinderProperties.getProperty("threadsNumber")));
+		setCpuMhz(Integer.parseInt(sacrificesFinderProperties.getProperty("cpuMhz")));
+		setHashSizeMB(Integer.parseInt(sacrificesFinderProperties.getProperty("hashSizeMB")));
+		setSyzygyPath(sacrificesFinderProperties.getProperty("syzygyPath"));
+		setSyzygyProbeDepth(sacrificesFinderProperties.getProperty("syzygyProbeDepth"));
 		setStrongestAverageTimeSecondsForMove(getStrongestAverageTimeSeconds());
-		setFen(psychologicalSacrificesFinderProperties.getProperty("fen"));
-		setMultiPV(Integer.parseInt(psychologicalSacrificesFinderProperties.getProperty("multiPV")));
-		setFullDepthThreads(psychologicalSacrificesFinderProperties.getProperty("fullDepthThreads"));
-		setOpeningVariety(psychologicalSacrificesFinderProperties.getProperty("openingVariety"));
-		setPersistedLearning(psychologicalSacrificesFinderProperties.getProperty("persistedLearning"));
-		setReadOnlyLearning(psychologicalSacrificesFinderProperties.getProperty("readOnlyLearning"));
-		setMcts(psychologicalSacrificesFinderProperties.getProperty("mcts"));
-		setMCTSThreads(psychologicalSacrificesFinderProperties.getProperty("mCTSThreads"));
-		setEngineName(psychologicalSacrificesFinderProperties.getProperty("engineName"));
-		setSearchMoves(psychologicalSacrificesFinderProperties.getProperty("searchMoves"));
-		setShowEngineInfos(psychologicalSacrificesFinderProperties.getProperty("showEngineInfos"));
+		setMultiPV(Integer.parseInt(sacrificesFinderProperties.getProperty("multiPV")));
+		setFullDepthThreads(sacrificesFinderProperties.getProperty("fullDepthThreads"));
+		setOpeningVariety(sacrificesFinderProperties.getProperty("openingVariety"));
+		setPersistedLearning(sacrificesFinderProperties.getProperty("persistedLearning"));
+		setReadOnlyLearning(sacrificesFinderProperties.getProperty("readOnlyLearning"));
+		setMcts(sacrificesFinderProperties.getProperty("mcts"));
+		setMCTSThreads(sacrificesFinderProperties.getProperty("mCTSThreads"));
+		setEngineName(sacrificesFinderProperties.getProperty("engineName"));
+		setSearchMoves(sacrificesFinderProperties.getProperty("searchMoves"));
+		setShowEngineInfos(sacrificesFinderProperties.getProperty("showEngineInfos"));
+		setPsychological(sacrificesFinderProperties.getProperty("psychological"));
 	}
 
 	public long getStrongestAverageTimeSeconds() {
 		return (getHashSizeMB() * 512 / (getThreadsNumber() * getCpuMhz()));
 	}
 
-	private Properties getpsychologicalSacrificesFinderProperties(String[] args) {
-		String psychologicalSacrificesFinderPropertiesName = args[0];
+	private Properties getSacrificesFinderProperties(String sacrificesFinderPropertiesPath) {
 		Properties properties = new Properties();
 		try {
-			File file = new File(psychologicalSacrificesFinderPropertiesName);
+			File file = new File(sacrificesFinderPropertiesPath);
 			FileInputStream fileInput = new FileInputStream(file);
 			properties.load(fileInput);
 			fileInput.close();
@@ -107,71 +110,83 @@ public class PsychologicalSacrificesFinder {
 
 	public static void main(String[] args) {
 
-		PsychologicalSacrificesFinder psychologicalSacrificesFinder = new PsychologicalSacrificesFinder(args);
+		SacrificesFinder sacrificesFinder = new SacrificesFinder(args[0], args[1]);
 		try {
-			psychologicalSacrificesFinder.startEngine();
-			psychologicalSacrificesFinder.setInitialUciOptions();
-			String showEngineInfos = psychologicalSacrificesFinder.getShowEngineInfos();
+			sacrificesFinder.startEngine();
+			sacrificesFinder.setInitialUciOptions();
+			String showEngineInfos = sacrificesFinder.getShowEngineInfos();
 			if ((showEngineInfos != null) && (!showEngineInfos.isEmpty())
 					&& (showEngineInfos.equalsIgnoreCase("yes"))) {
-				psychologicalSacrificesFinder.retrieveEngineInfo();
+				sacrificesFinder.retrieveEngineInfo();
 			}
-			psychologicalSacrificesFinder.getPsychologicalSacrifices();
-			psychologicalSacrificesFinder.closeEngine();
+			int threshold = sacrificesFinder.getPsychological().trim().equalsIgnoreCase("yes") ? PSYCHOLOGICAL_THRESHOLD
+					: REAL_THRESHOLD;
+			List<MoveRangeWinProbability> movesRanges = sacrificesFinder.getSacrifices(sacrificesFinder.getFen(),
+					threshold);
+			printSacrifices(sacrificesFinder, movesRanges);
+			sacrificesFinder.closeEngine();
 		} catch (Exception e) {
-			psychologicalSacrificesFinder.closeEngine();
+			sacrificesFinder.closeEngine();
 			logger.info("End computation for timeout");
 			System.exit(0);
 		}
 	}
 
-	private void getPsychologicalSacrifices() {
+	private static void printSacrifices(SacrificesFinder sacrificesFinder, List<MoveRangeWinProbability> movesRanges) {
+		if (!movesRanges.isEmpty()) {
+			logger.info("Sacrifices:Shashin position type;Win Probability");
+			for (MoveRangeWinProbability moveRange : movesRanges) {
+				String message = moveRange.getMove() + ": "
+						+ sacrificesFinder.getWinProbabilityByShashin().getRangeDescription(moveRange.getRange()) + ";"
+						+ moveRange.getWinProbability();
+				logger.info(message);
+			}
+		}
+	}
+
+	private List<MoveRangeWinProbability> getSacrifices(String fenToAnalyze, int threshold) {
+		List<MoveRangeWinProbability> movesRanges = new ArrayList<>();
+		String message = "";
 		try {
 			Board currentChessBoard = new Board();
-			ChessBoard currentChessBoardICTK = (ChessBoard) new FEN().stringToBoard(fen);
-			currentChessBoard.loadFromFen(fen);
-			int initialWinProbability=getWinProbability("", fen);
-			int initialRange=winProbabilityByShashin.getRange(initialWinProbability);
+			ChessBoard currentChessBoardICTK = (ChessBoard) new FEN().stringToBoard(fenToAnalyze);
+			currentChessBoard.loadFromFen(fenToAnalyze);
 			if (!currentChessBoard.isStaleMate() && !currentChessBoard.isMated()) {
-				float sideToMoveCurrentMaterialDifference = getSideToMoveMaterialDifference(currentChessBoardICTK);
+				int initialWinProbability = getWinProbability("", fenToAnalyze);
+				int initialRange = winProbabilityByShashin.getRange(initialWinProbability);
 				List<com.github.bhlangonijr.chesslib.move.Move> legalMoves = currentChessBoard.legalMoves();
-				List<MoveRange> movesRanges = new ArrayList<>();
-				String message = "Analysing " + legalMoves.size() + " moves";
+				message = "Analysing " + legalMoves.size() + " moves";
 				logger.info(message);
 				int moveNumber = 0;
 				for (com.github.bhlangonijr.chesslib.move.Move currentLegalMove : legalMoves) {
 					moveNumber++;
-					message ="Analysing move " + moveNumber;
+					message = "Analysing move " + moveNumber;
 					logger.info(message);
 					String currentLegalMoveSan = currentLegalMove.toString();
-					message="Analysing legal move: " + currentLegalMoveSan;
+					message = "Analysing legal move: " + currentLegalMoveSan;
 					logger.info(message);
-					String currentFen = currentChessBoard.getFen();
-					int currentWinProbability=getWinProbability(currentLegalMoveSan, currentFen);
-					int currentRange=winProbabilityByShashin.getRange(currentWinProbability);
-					if (isSacrifice(currentLegalMove, currentChessBoard, sideToMoveCurrentMaterialDifference,
-							currentChessBoardICTK.isBlackMove())
-							&& (Math.abs(currentRange - initialRange) <= 2)) {
-						logger.info("Psychological Sacrifice added");
-						movesRanges.add(new MoveRange(currentLegalMoveSan,currentRange,currentWinProbability ));
-					}
-					else {
-						logger.info("Not a psychological sacrifice");
-					}
-				}
-				Collections.sort(movesRanges, Comparator.comparingInt(MoveRange::getWinProbability).reversed());
-				if(!movesRanges.isEmpty()) {
-					logger.info("Psychological sacrifices:Shashin position type;Win Probability");
-					for (MoveRange moveRange : movesRanges) {
-						message=moveRange.getMove() + ": " + winProbabilityByShashin.getRangeDescription(moveRange.getRange())+";"+moveRange.getWinProbability();
-						logger.info(message);
+					int currentWinProbability = getWinProbability(currentLegalMoveSan, fenToAnalyze);
+					int currentRange = winProbabilityByShashin.getRange(currentWinProbability);
+					if (isSacrifice(currentLegalMove, currentChessBoard, currentChessBoardICTK.isBlackMove())
+						&& (Math.abs(currentRange - initialRange) <= threshold)
+							) {
+						logger.info("Sacrifice added");
+						movesRanges.add(
+								new MoveRangeWinProbability(currentLegalMoveSan, currentRange, currentWinProbability));
+					} else {
+						logger.info("Not a sacrifice");
 					}
 				}
+				Collections.sort(movesRanges,
+						Comparator.comparingInt(MoveRangeWinProbability::getWinProbability).reversed());
+			} else {
+				message = "StaleMate or Mate: no sacrifices to find";
+				logger.info(message);
 			}
 		} catch (IOException e) {
 			logger.info(e.getMessage());
 		}
-
+		return movesRanges;
 	}
 
 	private int getWinProbability(String currentLegalMoveSan, String currentFen) {
@@ -201,7 +216,64 @@ public class PsychologicalSacrificesFinder {
 		}
 	}
 
-	private boolean isSacrifice(com.github.bhlangonijr.chesslib.move.Move nextMove, Board currentChessBoard,
+	public boolean isSacrifice(com.github.bhlangonijr.chesslib.move.Move move, Board chessBoard, boolean isBlackMove) {
+		CaptureMoveNode capturesTree = getCapturesTree(move, chessBoard,isBlackMove);
+		return capturesTree!=null&&minimax(capturesTree, true) < 0;
+	}
+
+	private CaptureMoveNode getCapturesTree(com.github.bhlangonijr.chesslib.move.Move move, Board chessBoard,boolean isRootBlackMove) {
+		chessBoard.doMove(move);
+		String afterMoveFen=chessBoard.getFen();
+		chessBoard.undoMove();
+		ChessBoard ictkAfterMoveChessBoard;
+		try {
+			ictkAfterMoveChessBoard = (ChessBoard)new FEN().stringToBoard(afterMoveFen);
+			float sideToMoveMaterialDifference=getSideToMoveMaterialDifference(ictkAfterMoveChessBoard);
+			boolean isBlackMove=ictkAfterMoveChessBoard.isBlackMove();
+			float materialDifference=isBlackMove!=isRootBlackMove?-sideToMoveMaterialDifference:sideToMoveMaterialDifference;
+			CaptureMoveNode rootCaptureMoveNode = new CaptureMoveNode(move,materialDifference);
+			Board afterMoveBoard=new Board();
+			afterMoveBoard.loadFromFen(afterMoveFen);
+			List<com.github.bhlangonijr.chesslib.move.Move> legalMoves=afterMoveBoard.legalMoves();
+			for(com.github.bhlangonijr.chesslib.move.Move currentLegalMove:legalMoves) {
+				boolean isCapture=afterMoveBoard.getPiece(currentLegalMove.getTo())!= Piece.NONE;
+				if(isCapture) {
+					CaptureMoveNode child = getCapturesTree(currentLegalMove,afterMoveBoard,isRootBlackMove);
+					rootCaptureMoveNode.addChild(child);
+				}
+			}
+			return rootCaptureMoveNode;
+		} catch (IOException e) {
+			String message=e.getMessage();
+			logger.info(message);
+		}
+		return null;
+	}
+
+	public static float minimax(CaptureMoveNode node, boolean maximizingPlayer) {
+		if (node.getChildren().isEmpty()) {
+			// If it's a leaf node, return its value
+			return node.getMaterialDifference();
+		}
+
+		if (maximizingPlayer) {
+			float maxEval = Float.NEGATIVE_INFINITY;
+			for (CaptureMoveNode child : node.getChildren()) {
+				float eval = minimax(child, false);
+				maxEval = Math.max(maxEval, eval);
+			}
+			return maxEval;
+		} else {
+			float minEval = Float.MAX_VALUE;
+			for (CaptureMoveNode child : node.getChildren()) {
+				float eval = minimax(child, true);
+				minEval = Math.min(minEval, eval);
+			}
+			return minEval;
+		}
+	}
+
+	public boolean isSacrificeOld(com.github.bhlangonijr.chesslib.move.Move nextMove, Board currentChessBoard,
 			float sideToMoveMaterialDifference, boolean isBlackInitialSide) {
 		long currentAverageTimeMSForMove = strongestAverageTimeSecondsForMove * 1000;
 		currentChessBoard.doMove(nextMove);
@@ -225,11 +297,12 @@ public class PsychologicalSacrificesFinder {
 		String afterBestMoveBoardFen = afterNextMoveBoard.getFen();
 		afterBestMoveBoard.loadFromFen(afterBestMoveBoardFen);
 		afterNextMoveBoard.undoMove();
-		if(chessLibMove!=null) {
+		if (chessLibMove != null) {
 			boolean isCapture = afterNextMoveBoard.getPiece(chessLibMove.getTo()) != Piece.NONE;
 			try {
 				if (!isCapture) {
-					ChessBoard afterBestMoveChessBoardICTK = (ChessBoard) new FEN().stringToBoard(afterBestMoveBoardFen);
+					ChessBoard afterBestMoveChessBoardICTK = (ChessBoard) new FEN()
+							.stringToBoard(afterBestMoveBoardFen);
 					float difference = (sideToMoveMaterialDifference
 							- getSideToMoveMaterialDifference(afterBestMoveChessBoardICTK));
 					return (isBlackInitialSide == afterBestMoveChessBoardICTK.isBlackMove()) ? difference > 0
@@ -239,10 +312,10 @@ public class PsychologicalSacrificesFinder {
 				e.printStackTrace();
 			}
 		}
-		return isSacrifice(chessLibMove, afterNextMoveBoard, sideToMoveMaterialDifference, isBlackInitialSide);
+		return isSacrificeOld(chessLibMove, afterNextMoveBoard, sideToMoveMaterialDifference, isBlackInitialSide);
 	}
 
-	private float getSideToMoveMaterialDifference(ChessBoard chessBoard) {
+	public float getSideToMoveMaterialDifference(ChessBoard chessBoard) {
 		float whiteMaterial = 0;
 		float blackMaterial = 0;
 		for (int file = 1; file <= 8; file++)
@@ -416,12 +489,8 @@ public class PsychologicalSacrificesFinder {
 		return logger;
 	}
 
-	public void setLogger(Logger logger) {
-		this.logger = logger;
-	}
-
-	public Properties getpsychologicalSacrificesFinderProperties() {
-		return psychologicalSacrificesFinderProperties;
+	public Properties getSacrificesFinderProperties() {
+		return sacrificesFinderProperties;
 	}
 
 	public long getTimeoutMS() {
@@ -542,5 +611,21 @@ public class PsychologicalSacrificesFinder {
 
 	public void setShowEngineInfos(String showEngineInfos) {
 		this.showEngineInfos = showEngineInfos;
+	}
+
+	public WinProbabilityByShashin getWinProbabilityByShashin() {
+		return winProbabilityByShashin;
+	}
+
+	public void setWinProbabilityByShashin(WinProbabilityByShashin winProbabilityByShashin) {
+		this.winProbabilityByShashin = winProbabilityByShashin;
+	}
+
+	public String getPsychological() {
+		return psychological;
+	}
+
+	public void setPsychological(String psychological) {
+		this.psychological = psychological;
 	}
 }
