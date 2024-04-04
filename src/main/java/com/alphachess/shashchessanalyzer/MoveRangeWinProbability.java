@@ -1,11 +1,11 @@
 package com.alphachess.shashchessanalyzer;
 
-public class MoveRange {
+public class MoveRangeWinProbability {
 	private String move;
 	private int range;
 	private int winProbability;
 	
-	public MoveRange(String move, int range, int winProbability) {
+	public MoveRangeWinProbability(String move, int range, int winProbability) {
 		super();
 		this.move = move;
 		this.range = range;
