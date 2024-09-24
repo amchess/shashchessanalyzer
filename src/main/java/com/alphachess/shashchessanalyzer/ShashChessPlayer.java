@@ -1,5 +1,7 @@
 package com.alphachess.shashchessanalyzer;
 
+import static java.lang.String.format;
+import static net.andreinc.neatchess.client.breaks.Break.breakOn;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -41,11 +43,13 @@ import ictk.boardgame.io.InvalidGameFormatException;
 import net.andreinc.neatchess.client.UCI;
 import net.andreinc.neatchess.client.UCIResponse;
 import net.andreinc.neatchess.client.model.Analysis;
+import net.andreinc.neatchess.client.model.BestMove;
 import net.andreinc.neatchess.client.model.EngineInfo;
 import net.andreinc.neatchess.client.model.Move;
 import net.andreinc.neatchess.client.model.option.EngineOption;
 
 public class ShashChessPlayer {
+	private static final String START_POS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 	UCI uci = null;
 	private Properties shashChessPlayerProperties;
 	private int threadsNumber;
@@ -59,9 +63,11 @@ public class ShashChessPlayer {
 	private String currentFen;
 	private String currentPositionType;
 	private String fullDepthThreads;
-	private String openingVariety;
+	private String variety;
 	private String persistedLearning;
 	private String readOnlyLearning;
+	private String chessDBTablebase;
+	private String livebookProxyUrl;
 	private String mcts;
 	private String mCTSThreads;
 	private String engineName;
@@ -115,9 +121,11 @@ public class ShashChessPlayer {
 				shashChessPlayerProperties.getProperty("fen") != null ? shashChessPlayerProperties.getProperty("fen")
 						: "");
 		setFullDepthThreads(shashChessPlayerProperties.getProperty("fullDepthThreads"));
-		setOpeningVariety(shashChessPlayerProperties.getProperty("openingVariety"));
+		setVariety(shashChessPlayerProperties.getProperty("variety"));
 		setPersistedLearning(shashChessPlayerProperties.getProperty("persistedLearning"));
 		setReadOnlyLearning(shashChessPlayerProperties.getProperty("readOnlyLearning"));
+		setLivebookProxyUrl(shashChessPlayerProperties.getProperty("livebookProxyUrl"));
+		setChessDBTablebase(shashChessPlayerProperties.getProperty("chessDBTablebase"));
 		setMcts(shashChessPlayerProperties.getProperty("mcts"));
 		setMCTSThreads(shashChessPlayerProperties.getProperty("mCTSThreads"));
 		setEngineName(shashChessPlayerProperties.getProperty("engineName"));
@@ -222,7 +230,7 @@ public class ShashChessPlayer {
 	private void playFromIterationFen(History currentInputHistory, boolean fromPgn)
 			throws IOException, IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
 		ChessMove currentMove = (ChessMove) currentInputHistory.getCurrentMove();
-		String iterationFen = getFen().boardToString((ChessBoard) currentMove.getBoard());
+		String iterationFen = currentMove!=null ? getFen().boardToString((ChessBoard) currentMove.getBoard()):START_POS;
 		playFromIterationFen(iterationFen, fromPgn);
 	}
 
@@ -586,9 +594,26 @@ public class ShashChessPlayer {
 		long currentAverageTimeMSForMove = strongestAverageTimeSecondsForMove * 1000;
 		uci.uciNewGame();
 		uci.positionFen(fen);
-		UCIResponse<Analysis> response = uci.analysis((long) currentAverageTimeMSForMove);
+		UCIResponse<Analysis> response = uci.analysis(currentAverageTimeMSForMove,timeoutMS);
 		Analysis analysis = response.getResultOrThrow();
 		Move bestMove = analysis.getBestMove();
+		if(bestMove==null) {
+			UCIResponse<BestMove> bestMoveResponse=uci.bestMove(currentAverageTimeMSForMove);
+			BestMove bestMoveOnly=bestMoveResponse.getResultOrThrow();
+			uci.setOption("LiveBook Proxy Url", "", timeoutMS).getResultOrThrow();
+			uci.setOption("ChessDB Tablebase", "false", timeoutMS).getResultOrThrow();
+			String searchMoves=bestMoveOnly.getCurrent();
+			String goCommand = (searchMoves != null && !searchMoves.isEmpty())
+					? String.join("", "go movetime %d ", "searchmoves ", searchMoves)
+					: "go movetime %d";
+			response = uci.command(format(goCommand, strongestAverageTimeSecondsForMove), UCI.analysis::process,
+					breakOn("bestmove"), uci.getDefaultTimeout());
+			analysis = response.getResultOrThrow();
+			Map<Integer, Move> moves = analysis.getAllMoves();
+			bestMove = moves.get(1);
+			uci.setOption("LiveBook Proxy Url", livebookProxyUrl, timeoutMS).getResultOrThrow();
+			uci.setOption("ChessDB Tablebase", chessDBTablebase, timeoutMS).getResultOrThrow();
+		}
 		String lan = bestMove.getLan();
 		setIterationScore(((Double) (bestMove.getStrength().getScore() * 100)).intValue());
 		setIterationDepth(bestMove.getDepth());
@@ -689,9 +714,15 @@ public class ShashChessPlayer {
 			uci.setOption("SyzygyPath", syzygyPath, timeoutMS).getResultOrThrow();
 			uci.setOption("SyzygyProbeDepth", syzygyProbeDepth, timeoutMS).getResultOrThrow();
 			uci.setOption("Full depth threads", fullDepthThreads, timeoutMS).getResultOrThrow();
-			uci.setOption("Opening variety", openingVariety, timeoutMS).getResultOrThrow();
+			uci.setOption("Variety", variety, timeoutMS).getResultOrThrow();
 			uci.setOption("Persisted learning", persistedLearning, timeoutMS).getResultOrThrow();
 			uci.setOption("Read only learning", readOnlyLearning, timeoutMS).getResultOrThrow();
+			if(livebookProxyUrl!=null) {
+				uci.setOption("LiveBook Proxy Url", livebookProxyUrl, timeoutMS).getResultOrThrow();
+			}
+			if(chessDBTablebase!=null) {
+				uci.setOption("ChessDB Tablebase", chessDBTablebase, timeoutMS).getResultOrThrow();
+			}
 			uci.setOption("MCTS", mcts, timeoutMS).getResultOrThrow();
 			uci.setOption("MCTSThreads", mCTSThreads, timeoutMS).getResultOrThrow();
 		} catch (Exception e) {
@@ -847,8 +878,8 @@ public class ShashChessPlayer {
 		return fullDepthThreads;
 	}
 
-	public String getOpeningVariety() {
-		return openingVariety;
+	public String getVariety() {
+		return variety;
 	}
 
 	public String getPersistedLearning() {
@@ -871,8 +902,8 @@ public class ShashChessPlayer {
 		this.fullDepthThreads = fullDepthThreads;
 	}
 
-	public void setOpeningVariety(String openingVariety) {
-		this.openingVariety = openingVariety;
+	public void setVariety(String variety) {
+		this.variety = variety;
 	}
 
 	public void setPersistedLearning(String persistedLearning) {
@@ -1121,6 +1152,22 @@ public class ShashChessPlayer {
 
 	public void setPw(PrintWriter pw) {
 		this.pw = pw;
+	}
+
+	public String getChessDBTablebase() {
+		return chessDBTablebase;
+	}
+
+	public void setChessDBTablebase(String chessDBTablebase) {
+		this.chessDBTablebase = chessDBTablebase;
+	}
+
+	public String getLivebookProxyUrl() {
+		return livebookProxyUrl;
+	}
+
+	public void setLivebookProxyUrl(String livebookProxyUrl) {
+		this.livebookProxyUrl = livebookProxyUrl;
 	}
 
 }
