@@ -5,7 +5,6 @@ import static net.andreinc.neatchess.client.breaks.Break.breakOn;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -13,10 +12,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-import com.alphachess.shashchessanalyzer.WinProbabilityByShashin.RangeDescription;
+import com.alphachess.shashchessanalyzer.WinProbabilityByMaterial.RangeDescription;
 
-import ictk.boardgame.chess.ChessBoard;
-import ictk.boardgame.chess.io.FEN;
 import net.andreinc.neatchess.client.UCI;
 import net.andreinc.neatchess.client.UCIResponse;
 import net.andreinc.neatchess.client.model.Analysis;
@@ -50,8 +47,7 @@ public class ShashChessAnalyzer {
 	private String engineName;
 	private String searchMoves;
 	private String showEngineInfos;
-	private WinProbabilityByShashin winProbabilityByShashin = new WinProbabilityByShashin();
-	Logger logger = Logger.getLogger(ShashChessAnalyzer.class.getName());
+	private static Logger logger = Logger.getLogger(ShashChessAnalyzer.class.getName());
 
 	public ShashChessAnalyzer(String[] args) {
 		shashChessAnalyzerProperties = getShashChessAnalyzerProperties(args);
@@ -82,25 +78,20 @@ public class ShashChessAnalyzer {
 	}
 
 	public long getStrongestAverageTimeSeconds() {
-		return (long) (getHashSizeMB() * 512 / (getThreadsNumber() * getCpuMhz()));
+		return (getHashSizeMB() * 512 / (getThreadsNumber() * getCpuMhz()));
 	}
 
 	private Properties getShashChessAnalyzerProperties(String[] args) {
-		String shashChessAnalyzerProperties = args[0];
+		String shashChessAnalyzerPropertiesFromArgs = args[0];
 		Properties properties = new Properties();
-		try {
-			File file = new File(shashChessAnalyzerProperties);
-			FileInputStream fileInput = new FileInputStream(file);
-			properties.load(fileInput);
-			fileInput.close();
+		File file = new File(shashChessAnalyzerPropertiesFromArgs);
 
-		} catch (FileNotFoundException e) {
-			logger.info(e.getMessage());
-			System.exit(0);
+		try (FileInputStream fileInput = new FileInputStream(file)) {
+			properties.load(fileInput);
 		} catch (IOException e) {
 			logger.info(e.getMessage());
-			System.exit(0);
 		}
+
 		return properties;
 	}
 
@@ -119,73 +110,51 @@ public class ShashChessAnalyzer {
 			shashChessAnalyzer.closeShashChess();
 		} catch (Exception e) {
 			shashChessAnalyzer.closeShashChess();
-			System.out.println("End computation for timeout");
+			logger.info("End computation for timeout");
 			System.exit(0);
 		}
 	}
 
-	private int getPlayedHalfMovesNumber(String fen) {
-		int playedHalfMovesNumber = -1;
-		String[] fenParts = fen.split("\\s+");
-		// The half-move number is the fifth element in the FEN string
-		String movesNumberStr = fenParts[5];
-		String color = fenParts[1];
-		try {
-			int movesNumber = Integer.parseInt(movesNumberStr);
-			playedHalfMovesNumber = color.equals("w") ? (int) ((movesNumber - 1) / 2) : ((movesNumber - 1) / 2) + 1;
-		} catch (NumberFormatException e) {
-			// Handle the case where the half-move number is not a valid integer
-			logger.info("Invalid half-move number in FEN: " + movesNumberStr);
-			return playedHalfMovesNumber;
-		}
-		return playedHalfMovesNumber;
-	}
-
 	private void analyzePosition(int timeMultiplier) {
 		long currentAverageTimeSecondsForMove = strongestAverageTimeSecondsForMove * 1000 * timeMultiplier * multiPV;
-		System.out.println(String.join("", "Average time for all moves in seconds: ",
-				Long.toString(currentAverageTimeSecondsForMove / 1000)));
+		String analyzeMsg = String.join("", "Average time for all moves in seconds: ",
+				Long.toString(currentAverageTimeSecondsForMove / 1000));
+		logger.info(analyzeMsg);
 		uci.uciNewGame();
 		fen = fen.trim();
 		uci.positionFen(fen);
 		UCIResponse<Analysis> response = null;
 		if (searchMoves == null || searchMoves.isEmpty()) {
-			response = uci.analysis((long) currentAverageTimeSecondsForMove);
+			response = uci.analysis(currentAverageTimeSecondsForMove);
 		} else {
-			String goCommand = (searchMoves != null && !searchMoves.isEmpty())
+			String goCommand = (!searchMoves.isEmpty())
 					? String.join("", "go movetime %d ", "searchmoves ", searchMoves)
 					: "go movetime %d";
 			response = uci.command(format(goCommand, currentAverageTimeSecondsForMove), UCI.analysis::process,
 					breakOn("bestmove"), uci.getDefaultTimeout());
 		}
 		Analysis analysis = response.getResultOrThrow();
-		/*
-		 * Move bestMove = analysis.getBestMove(); System.out.println(String.join("",
-		 * "Best move: ", bestMove.toString())); int score = ((Double)
-		 * (bestMove.getStrength().getScore() * 100)).intValue();
-		 * System.out.println(String.join("", "Score: ", Integer.toString(score),
-		 * "cp")); String positionType = getPositionType(score);
-		 * System.out.println(String.join("", "Position type: ", positionType));
-		 */
-		// Possible best moves
 		Map<Integer, Move> moves = analysis.getAllMoves();
 		Move bestMove = moves.get(1);
-		System.out.println(String.join("", "Best move: ", bestMove.toString()));
+		String besMoveMsg = String.join("", "Best move: ", bestMove.toString());
+		logger.info(besMoveMsg);
 		int score = ((Double) (bestMove.getStrength().getScore() * 100)).intValue();
-		System.out.println(String.join("", "Score: ", Integer.toString(score), "cp"));
-		int playedHalfMovesNumber=getPlayedHalfMovesNumber(fen);
-		String positionType = getPositionType(score, playedHalfMovesNumber);
-		System.out.println(String.join("", "Position type: ", positionType));
-		String winProbability = Integer.toString(winProbabilityByShashin.getWinProbability(score, playedHalfMovesNumber));
-		System.out.println(String.join("", "Win Probability: ", winProbability));
+		String scoreMsg = String.join("", "Score: ", Integer.toString(score), "cp");
+		logger.info(scoreMsg);
+		String positionType = getPositionType(score, fen);
+		String positionTypeMsg = String.join("", "Position type: ", positionType);
+		logger.info(positionTypeMsg);
+		String winProbability = Integer.toString(WinProbabilityByMaterial.getWinProbabilityByScore(score, fen));
+		String winProbabilityMsg = String.join("", "Win Probability: ", winProbability);
+		logger.info(winProbabilityMsg);
 
-		moves.forEach((idx, move) -> {
-			System.out.println(String.join("", "\t" + move));
-		});
+		moves.forEach((idx, move) -> logger.info(String.join("", "\t" + move)));
 		SimpleDateFormat formatter = new SimpleDateFormat("HH:mm");
 		Date date = new Date();
-		System.out.println(formatter.format(date));
-		System.out.println(String.join("", "Restart the analysis based on Shashin theory - ", formatter.format(date)));
+		String dateMsg = formatter.format(date);
+		logger.info(dateMsg);
+		String restartMsg = String.join("", "Restart the analysis based on Shashin theory - ", dateMsg);
+		logger.info(restartMsg);
 		setShashinUciOptions(positionType);
 		analyzePosition(++timeMultiplier);
 		closeShashChess();
@@ -200,47 +169,48 @@ public class ShashChessAnalyzer {
 				break;
 			}
 		}
-		switch (rangeDescription) {
-		case HIGH_PETROSIAN:
-		case MIDDLE_PETROSIAN:
-		case LOW_PETROSIAN:
-		case CAPABLANCA:
-		case LOW_TAL:
-		case MIDDLE_TAL:
-		case HIGH_TAL:
-			uci.setOption(rangeDescription.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case HIGH_MIDDLE_PETROSIAN:
-			uci.setOption(RangeDescription.HIGH_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.MIDDLE_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case MIDDLE_LOW_PETROSIAN:
-			uci.setOption(RangeDescription.MIDDLE_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.LOW_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case CAOS_PETROSIAN_CAPABLANCA:
-			uci.setOption(RangeDescription.LOW_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.CAPABLANCA.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case CAOS_TAL_CAPABLANCA:
-			uci.setOption(RangeDescription.CAPABLANCA.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.LOW_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case LOW_MIDDLE_TAL:
-			uci.setOption(RangeDescription.LOW_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.MIDDLE_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case MIDDLE_HIGH_TAL:
-			uci.setOption(RangeDescription.MIDDLE_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.HIGH_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case CAOS_TAL_CAPABLANCA_PETROSIAN:
-			setAllPersonalities();
-			break;
-		default:
-			break;
+		if (rangeDescription != null) {
+			switch (rangeDescription) {
+			case HIGH_PETROSIAN:
+			case MIDDLE_PETROSIAN:
+			case LOW_PETROSIAN:
+			case CAPABLANCA:
+			case LOW_TAL:
+			case MIDDLE_TAL:
+			case HIGH_TAL:
+				uci.setOption(rangeDescription.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case HIGH_MIDDLE_PETROSIAN:
+				uci.setOption(RangeDescription.HIGH_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.MIDDLE_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case MIDDLE_LOW_PETROSIAN:
+				uci.setOption(RangeDescription.MIDDLE_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.LOW_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case CAOS_PETROSIAN_CAPABLANCA:
+				uci.setOption(RangeDescription.LOW_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.CAPABLANCA.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case CAOS_TAL_CAPABLANCA:
+				uci.setOption(RangeDescription.CAPABLANCA.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.LOW_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case LOW_MIDDLE_TAL:
+				uci.setOption(RangeDescription.LOW_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.MIDDLE_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case MIDDLE_HIGH_TAL:
+				uci.setOption(RangeDescription.MIDDLE_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.HIGH_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case CAOS_TAL_CAPABLANCA_PETROSIAN:
+				setAllPersonalities();
+				break;
+			default:
+				break;
+			}
 		}
-
 	}
 
 	private void setAllPersonalities() {
@@ -254,10 +224,10 @@ public class ShashChessAnalyzer {
 		uci.setOption(RangeDescription.HIGH_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
 	}
 
-	private String getPositionType(int score, int ply) {
-		int winProbability = winProbabilityByShashin.getWinProbability(score, ply);
-		int range = winProbabilityByShashin.getRange(winProbability);
-		return winProbabilityByShashin.getRangeDescription(range);
+	private String getPositionType(int score, String fen) {
+		int winProbability = WinProbabilityByMaterial.getWinProbabilityByScore(score, fen);
+		int range = WinProbabilityByMaterial.getRange(winProbability);
+		return WinProbabilityByMaterial.getRangeDescription(range);
 	}
 
 	private void setInitialUciOptions() {
@@ -275,7 +245,7 @@ public class ShashChessAnalyzer {
 			uci.setOption("MultiPV", Integer.toString(multiPV));
 		} catch (Exception e) {
 			closeShashChess();
-			System.out.println("Impossible to setup uci options");
+			logger.info("Impossible to setup uci options");
 			System.exit(0);
 		}
 	}
@@ -287,21 +257,22 @@ public class ShashChessAnalyzer {
 
 			// Engine name
 			EngineInfo engineInfo = response.getResult();
-			System.out.println(String.join("", "Engine name:" + engineInfo.getName()));
+			String engineNameMsg = String.join("", "Engine name:" + engineInfo.getName());
+			logger.info(engineNameMsg);
 
 			// Supported engine options
-			System.out.println("Supported engine options:");
+			logger.info("Supported engine options:");
 			Map<String, EngineOption> engineOptions = engineInfo.getOptions();
 			engineOptions.forEach((key, value) -> {
-				System.out.println(String.join("", "\t", key));
-				System.out.println(String.join("", "\t\t", value.toString()));
+				logger.info(String.join("", "\t", key));
+				logger.info(String.join("", "\t\t", value.toString()));
 			});
 		}
 	}
 
 	private void closeShashChess() {
 		uci.close();
-		System.out.println("Engine closed");
+		logger.info("Engine closed");
 		System.exit(0);
 	}
 
@@ -353,10 +324,6 @@ public class ShashChessAnalyzer {
 
 	public Logger getLogger() {
 		return logger;
-	}
-
-	public void setLogger(Logger logger) {
-		this.logger = logger;
 	}
 
 	public Properties getShashChessAnalyzerProperties() {

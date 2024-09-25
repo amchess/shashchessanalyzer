@@ -1,6 +1,7 @@
 package com.alphachess.shashchessanalyzer;
 
 import ictk.boardgame.chess.ChessMove;
+import ictk.boardgame.chess.io.FEN;
 import net.andreinc.neatchess.client.model.Move;
 
 public class MoveInfo {
@@ -39,7 +40,9 @@ public class MoveInfo {
 		this.chessMove = chessMove;
 		this.score = ((Double) (move.getStrength().getScore() * 100)).intValue();
 		this.depth = move.getDepth();
-		this.positionType = getPositionType(score,ply);
+		int winProbability=WinProbabilityByMaterial.getWinProbabilityByScore(score, new FEN().boardToString(chessMove.getBoard()));
+		int rangeValue=WinProbabilityByMaterial.getRange(winProbability);
+		this.positionType = WinProbabilityByMaterial.getRangeDescription(rangeValue);
 	}
 	public Move getMove() {
 		return move;
@@ -70,11 +73,5 @@ public class MoveInfo {
 	}
 	public void setPositionType(String positionType) {
 		this.positionType = positionType;
-	}
-	private String getPositionType(int score, int ply) {
-		WinProbabilityByShashin winProbabilityByShashin=new WinProbabilityByShashin();
-		int winProbability=winProbabilityByShashin.getWinProbability(score, ply);
-		int rangeValue=winProbabilityByShashin.getRange(winProbability);
-		return winProbabilityByShashin.getRangeDescription(rangeValue);
 	}
 }

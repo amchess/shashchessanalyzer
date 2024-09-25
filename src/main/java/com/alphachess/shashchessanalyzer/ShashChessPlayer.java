@@ -2,6 +2,7 @@ package com.alphachess.shashchessanalyzer;
 
 import static java.lang.String.format;
 import static net.andreinc.neatchess.client.breaks.Break.breakOn;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -16,13 +17,12 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-import com.alphachess.shashchessanalyzer.WinProbabilityByShashin.Range;
-import com.alphachess.shashchessanalyzer.WinProbabilityByShashin.RangeDescription;
+import com.alphachess.shashchessanalyzer.WinProbabilityByMaterial.Range;
+import com.alphachess.shashchessanalyzer.WinProbabilityByMaterial.RangeDescription;
 
 import ictk.boardgame.AmbiguousMoveException;
 import ictk.boardgame.History;
 import ictk.boardgame.IllegalMoveException;
-import ictk.boardgame.OutOfTurnException;
 import ictk.boardgame.Result;
 import ictk.boardgame.chess.Bishop;
 import ictk.boardgame.chess.ChessBoard;
@@ -49,7 +49,9 @@ import net.andreinc.neatchess.client.model.Move;
 import net.andreinc.neatchess.client.model.option.EngineOption;
 
 public class ShashChessPlayer {
+	private static final String LIVE_BOOK_PROXY_URL = "LiveBook Proxy Url";
 	private static final String START_POS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+	private static final String CHESSDB_TABLEBASE = "ChessDB Tablebase";
 	UCI uci = null;
 	private Properties shashChessPlayerProperties;
 	private int threadsNumber;
@@ -96,7 +98,6 @@ public class ShashChessPlayer {
 	private int semiMoveNumber;
 	private PGNWriter pgnWriter = null;
 	private PrintWriter pw = null;
-	private WinProbabilityByShashin winProbabilityByShashin = new WinProbabilityByShashin();
 	private boolean blackCastleable = true;
 	private boolean whiteCastleable = true;
 
@@ -139,25 +140,20 @@ public class ShashChessPlayer {
 	}
 
 	public long getStrongestAverageTimeSeconds() {
-		return (long) (getHashSizeMB() * 512 / (getThreadsNumber() * getCpuMhz()));
+		return (getHashSizeMB() * 512 / (getThreadsNumber() * getCpuMhz()));
 	}
 
 	private Properties getShashChessPlayerProperties(String[] args) {
 		String shashChessAnalyzerProperties = args[0];
 		Properties properties = new Properties();
-		try {
-			File file = new File(shashChessAnalyzerProperties);
-			FileInputStream fileInput = new FileInputStream(file);
-			properties.load(fileInput);
-			fileInput.close();
 
-		} catch (FileNotFoundException e) {
-			logger.info(e.getMessage());
-			System.exit(0);
+		File file = new File(shashChessAnalyzerProperties);
+		try (FileInputStream fileInput = new FileInputStream(file)) {
+			properties.load(fileInput);
 		} catch (IOException e) {
 			logger.info(e.getMessage());
-			System.exit(0);
 		}
+
 		return properties;
 	}
 
@@ -167,53 +163,56 @@ public class ShashChessPlayer {
 		try {
 			shashChessPlayer.setPgnWriter();
 			shashChessPlayer.initShashChess();
-			System.out.println(String.join(" ", "Begin playing at",
+			String beginPlayingMsg = String.join(" ", "Begin playing at",
 					Long.toString(shashChessPlayer.getStrongestAverageTimeSeconds() * 2),
-					"seconds per move from position"));
+					"seconds per move from position");
+			logger.info(beginPlayingMsg);
 			String iterationFen = shashChessPlayer.getCurrentFen().trim();
 			String inputGamesPgn = shashChessPlayer.getInputGamesPgn();
 			if (inputGamesPgn != null && !inputGamesPgn.isEmpty()) {
 				shashChessPlayer.playFromPgnInput();
 			} else {
-				shashChessPlayer.playFromIterationFen(iterationFen, false);
+				shashChessPlayer.playFromIterationFen(iterationFen);
 			}
 		} catch (Exception e) {
 			shashChessPlayer.closeWrite();
 			shashChessPlayer.closeShashChess();
-			System.out.println("End computation for timeout");
+			logger.info("End computation for timeout");
 			System.exit(0);
 		}
 	}
 
-	private void playFromPgnInput() throws IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
+	private void playFromPgnInput() throws IllegalMoveException, AmbiguousMoveException {
 		setDataInizioElaborazionePrincipale(new Date());
 		int currentInputGameNumber = 0;
 		try {
-			pgnReader = getPGNReader();
+			pgnReader = getPGNReaderFromFile();
 			ChessGame currentInputGame = getCurrentInputGame();
 			while (currentInputGame != null) {
-				System.out.println(currentInputGame.getGameInfo());
-				System.out.println(currentInputGame.getHistory());
-				System.out.println("");
+				String gameInfoMsg = currentInputGame.getGameInfo().toString();
+				logger.info(gameInfoMsg);
+				String historyMsg = currentInputGame.getHistory().toString();
+				logger.info(historyMsg);
+				logger.info("");
 				setCurrentInputChessGame(currentInputGame);
 				currentInputGameNumber++;
-				System.out.println("Current input game: " + currentInputGameNumber);
+				String currentInputGameMsg = "Current input game: " + currentInputGameNumber;
+				logger.info(currentInputGameMsg);
 				setCurrentChessGameFromInput(currentInputGame);
 				History currentInputHistory = getCurrentInputHistory(currentInputGame);
 				setMoveCounter(
 						(((semiMoveNumber + 1) % 2 != 0) ? (int) Math.floor((double) (semiMoveNumber + 1) / (double) 2)
 								: ((semiMoveNumber + 1) / 2)));
 				ChessGameInfo currentInputChessGameInfo = (ChessGameInfo) (currentInputGame.getGameInfo());
-				String ecoCode = currentInputChessGameInfo.getECO() != null ? currentInputChessGameInfo.getECO()
+				String currentEcoCode = currentInputChessGameInfo.getECO() != null ? currentInputChessGameInfo.getECO()
 						: currentInputGame.getGameInfo().getSite();
-				setEcoCode(ecoCode);
+				setEcoCode(currentEcoCode);
 				setMaxMovesNumber(getMoveCounter() + getGamesMoveFromEco());
-				playFromIterationFen(currentInputHistory, true);
+				playFromIterationFen(currentInputHistory);
 				currentInputGame = getCurrentInputGame();
 			}
 			closeAll();
 		} catch (IllegalMoveException | AmbiguousMoveException | IOException e) {
-			// TODO Auto-generated catch block
 			logger.info(e.getMessage());
 		}
 
@@ -222,16 +221,16 @@ public class ShashChessPlayer {
 	private void closeAll() throws IOException {
 		closeWrite();
 		closeShashChess();
-		System.out.println("Engine closed");
+		logger.info("Engine closed");
 		System.exit(0);
 		closeGamesReader();
 	}
 
-	private void playFromIterationFen(History currentInputHistory, boolean fromPgn)
-			throws IOException, IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
+	private void playFromIterationFen(History currentInputHistory)
+			throws IOException, IllegalMoveException, AmbiguousMoveException {
 		ChessMove currentMove = (ChessMove) currentInputHistory.getCurrentMove();
-		String iterationFen = currentMove!=null ? getFen().boardToString((ChessBoard) currentMove.getBoard()):START_POS;
-		playFromIterationFen(iterationFen, fromPgn);
+		String iterationFen = currentMove != null ? getFen().boardToString(currentMove.getBoard()) : START_POS;
+		playFromIterationFen(iterationFen);
 	}
 
 	private History getCurrentInputHistory(ChessGame currentInputGame) {
@@ -253,22 +252,23 @@ public class ShashChessPlayer {
 		getCurrentChessGame().setBoard(currentInputGame.getBoard());
 	}
 
-	private void playFromIterationFen(String iterationFen, boolean fromPgn)
-			throws IOException, IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
+	private void playFromIterationFen(String iterationFen)
+			throws IOException, IllegalMoveException, AmbiguousMoveException {
 		if (iterationFen != null && !iterationFen.isEmpty()) {
 			ChessBoard iterationChessBoard = (ChessBoard) getFen().stringToBoard(iterationFen);
 			if (iterationChessBoard != null) {
 				if (inputGamesPgn == null) {
-					System.out.println("");
-					System.out.println(iterationChessBoard.toString());
-					System.out.println("");
+					logger.info("");
+					String iterationChessBoardMsg = iterationChessBoard.toString();
+					logger.info(iterationChessBoardMsg);
+					logger.info("");
 				}
-				System.out.println("Starting self play");
+				logger.info("Starting self play");
 				History currentHistory = getCurrentHistory(iterationChessBoard);
 				if (currentHistory != null) {
 					while ((!iterationChessBoard.isCheckmate() && (getSemiMoveNumber() < getMaxMovesNumber() * 2))
 							&& (!iterationChessBoard.is50MoveRuleApplicible())) {
-						doStep(iterationFen, 1, getMoveCounter(), iterationChessBoard.isBlackMove());
+						doStep(iterationFen, 1, iterationChessBoard.isBlackMove());
 						setShashinUciOptions(getCurrentPositionType());
 						iterationFen = getStep2Fen(iterationFen, iterationChessBoard, currentHistory);
 						restartShashChess();
@@ -284,14 +284,16 @@ public class ShashChessPlayer {
 		initShashChess();
 	}
 
-	private void writeCurrentGame() throws IOException {
-		System.out.println("");
+	private void writeCurrentGame() {
+		logger.info("");
 		int finalScore = getIterationScore();
-		String currentFen = getCurrentFen().trim();
-		ChessResult gameResult = getGameResult(finalScore, currentFen);
+		String currentGameFen = getCurrentFen().trim();
+		ChessResult gameResult = getGameResult(finalScore, currentGameFen);
 		getCurrentChessGameInfo().setResult(gameResult);
-		System.out.println(getCurrentChessGame().getGameInfo().toString());
-		System.out.println(getCurrentChessGame().getHistory().toString());
+		String gameInfoMsg = getCurrentChessGame().getGameInfo().toString();
+		logger.info(gameInfoMsg);
+		String historyMsg = getCurrentChessGame().getHistory().toString();
+		logger.info(historyMsg);
 		writePgn();
 	}
 
@@ -308,15 +310,15 @@ public class ShashChessPlayer {
 				currentInputGame = (ChessGame) pgnReader.readGame();
 				if (currentInputGame != null) {
 					numeroPartiteTotali++;
-					System.out.println(String.join("", "Loaded game: ", Long.toString(numeroPartiteTotali)));
+					String loadedGameMsg = String.join("", "Loaded game: ", Long.toString(numeroPartiteTotali));
+					logger.info(loadedGameMsg);
 				} else {
 					return null;
 				}
 
 			} catch (InvalidGameFormatException | IllegalMoveException | AmbiguousMoveException ex) {
 				numeroPartiteInFormatoScorretto++;
-				System.out.println(
-						String.join("", "Game ", Long.toString(numeroPartiteTotali + 1), " has an incorrect pgn."));
+				logger.info(String.join("", "Game ", Long.toString(numeroPartiteTotali + 1), " has an incorrect pgn."));
 			} catch (IOException ioEx) {
 				return null;
 			}
@@ -324,28 +326,11 @@ public class ShashChessPlayer {
 		return currentInputGame;
 	}
 
-	private PGNReader getPGNReader() throws FileNotFoundException {
+	private PGNReader getPGNReaderFromFile() throws FileNotFoundException {
 		gamesFileReader = new FileReader(inputGamesPgn.trim());
 		gamesInputBufferedReader = new BufferedReader(gamesFileReader);
 		pgnReader = new PGNReader(gamesInputBufferedReader);
 		return pgnReader;
-	}
-
-	private int getPlayedHalfMovesNumber(String fen) {
-		int playedHalfMovesNumber = -1;
-		String[] fenParts = fen.split("\\s+");
-		// The half-move number is the fifth element in the FEN string
-		String movesNumberStr = fenParts[5];
-		String color = fenParts[1];
-		try {
-			int movesNumber = Integer.parseInt(movesNumberStr);
-			playedHalfMovesNumber = color.equals("w") ? (int) ((movesNumber - 1) / 2) : ((movesNumber - 1) / 2) + 1;
-		} catch (NumberFormatException e) {
-			// Handle the case where the half-move number is not a valid integer
-			logger.info("Invalid half-move number in FEN: " + movesNumberStr);
-			return playedHalfMovesNumber;
-		}
-		return playedHalfMovesNumber;
 	}
 
 	private ChessResult getGameResult(int finalScore, String finalFen) {
@@ -353,48 +338,48 @@ public class ShashChessPlayer {
 		try {
 			finalChessBoard = (ChessBoard) fen.stringToBoard(finalFen);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logger.info(e.getMessage());
 		}
-		int gamePly = getPlayedHalfMovesNumber(finalFen);
-		int winProbability = winProbabilityByShashin.getWinProbability(finalScore, gamePly);
-		int rangeValue = winProbabilityByShashin.getRange(winProbability);
+		int winProbability = WinProbabilityByMaterial.getWinProbabilityByScore(finalScore, finalFen);
+		int rangeValue = WinProbabilityByMaterial.getRange(winProbability);
 		ChessResult gameResult = new ChessResult(Result.UNDECIDED);
 
 		if (rangeValue == Range.SHASHIN_POSITION_CAPABLANCA.getValue()) {
 			gameResult.set(ChessResult.DRAW);
 		}
-		if (rangeValue < Range.SHASHIN_POSITION_CAPABLANCA.getValue() && finalChessBoard.isBlackMove()) {
-			gameResult.set(ChessResult.BLACK_WIN);
-		}
-		if (rangeValue < Range.SHASHIN_POSITION_CAPABLANCA.getValue() && !finalChessBoard.isBlackMove()) {
-			gameResult.set(ChessResult.WHITE_WIN);
-		}
-		if ((rangeValue > Range.SHASHIN_POSITION_CAPABLANCA.getValue()) && finalChessBoard.isBlackMove()) {
-			gameResult.set(ChessResult.WHITE_WIN);
-		}
-		if ((finalScore > Range.SHASHIN_POSITION_CAPABLANCA.getValue()) && !finalChessBoard.isBlackMove()) {
-			gameResult.set(ChessResult.BLACK_WIN);
+		if (finalChessBoard != null) {
+			if (rangeValue < Range.SHASHIN_POSITION_CAPABLANCA.getValue() && finalChessBoard.isBlackMove()) {
+				gameResult.set(ChessResult.BLACK_WIN);
+			}
+			if (rangeValue < Range.SHASHIN_POSITION_CAPABLANCA.getValue() && !finalChessBoard.isBlackMove()) {
+				gameResult.set(ChessResult.WHITE_WIN);
+			}
+			if ((rangeValue > Range.SHASHIN_POSITION_CAPABLANCA.getValue()) && finalChessBoard.isBlackMove()) {
+				gameResult.set(ChessResult.WHITE_WIN);
+			}
+			if ((finalScore > Range.SHASHIN_POSITION_CAPABLANCA.getValue()) && !finalChessBoard.isBlackMove()) {
+				gameResult.set(ChessResult.BLACK_WIN);
+			}
 		}
 		return gameResult;
 	}
 
 	private History getCurrentHistory(ChessBoard iterationChessBoard) {
 		setCurrentChessGame(getCurrentChessGame(iterationChessBoard));
-		ChessGameInfo currentChessGameInfo = getChessGameInfo();
+		ChessGameInfo currentistoryChessGameInfo = getChessGameInfo();
 		if (getCurrentInputChessGame() == null) {
-			getCurrentChessGame().setGameInfo(currentChessGameInfo);
+			getCurrentChessGame().setGameInfo(currentistoryChessGameInfo);
 		}
-		History currentHistory = getCurrentChessGame().getHistory();
-		return currentHistory;
+		return getCurrentChessGame().getHistory();
 	}
 
 	private ChessGame getCurrentChessGame(ChessBoard iterationChessBoard) {
-		ChessGame currentChessGame = (getCurrentInputChessGame() == null) ? new ChessGame() : getCurrentChessGame();
+		ChessGame currentIterationChessGame = (getCurrentInputChessGame() == null) ? new ChessGame()
+				: getCurrentChessGame();
 		if (getCurrentInputChessGame() == null) {
-			currentChessGame.setBoard(iterationChessBoard);
+			currentIterationChessGame.setBoard(iterationChessBoard);
 		}
-		return currentChessGame;
+		return currentIterationChessGame;
 	}
 
 	private ChessGameInfo getChessGameInfo() {
@@ -430,8 +415,8 @@ public class ShashChessPlayer {
 	}
 
 	private String getStep2Fen(String iterationFen, ChessBoard iterationChessBoard, History currentHistory)
-			throws IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
-		String lan = doStep(iterationFen, 2, getMoveCounter(), iterationChessBoard.isBlackMove());
+			throws IllegalMoveException, AmbiguousMoveException {
+		String lan = doStep(iterationFen, 2, iterationChessBoard.isBlackMove());
 		if (lan != null) {
 			iterationFen = getCurrentIterationFen(iterationChessBoard, currentHistory, lan);
 		}
@@ -440,7 +425,7 @@ public class ShashChessPlayer {
 	}
 
 	private String getCurrentIterationFen(ChessBoard iterationChessBoard, History currentHistory, String lan)
-			throws IllegalMoveException, OutOfTurnException, AmbiguousMoveException {
+			throws IllegalMoveException, AmbiguousMoveException {
 		String moveOriginSquareCoordinates = lan.substring(0, 2);
 		String moveDestinationSquareCoordinates = lan.substring(2, 4);
 		byte moveOriginSquareFile = (byte) (moveOriginSquareCoordinates.charAt(0) - 96);
@@ -460,19 +445,15 @@ public class ShashChessPlayer {
 			iterationChessMove = new ChessMove(iterationChessBoard, moveOriginSquareFile, moveOriginSquareRank,
 					moveDestinationSquareFile, moveDestinationSquareRank);
 		}
-		if (iterationChessMove != null) {
-			currentHistory.add(iterationChessMove);
-			semiMoveNumber++;
-			setMoveCounter(
-					(((semiMoveNumber + 1) % 2 != 0) ? (int) Math.floor((double) (semiMoveNumber + 1) / (double) 2)
-							: ((semiMoveNumber + 1) / 2)));
-		}
+		currentHistory.add(iterationChessMove);
+		semiMoveNumber++;
+		setMoveCounter((((semiMoveNumber + 1) % 2 != 0) ? (int) Math.floor((double) (semiMoveNumber + 1) / (double) 2)
+				: ((semiMoveNumber + 1) / 2)));
 		ChessAnnotation iterationChessMoveAnnotation = new ChessAnnotation();
-		iterationFen=new FEN().boardToString(iterationChessBoard);
+		iterationFen = new FEN().boardToString(iterationChessBoard);
 		iterationChessMoveAnnotation.setComment(
 				String.join("", Integer.toString(getIterationScore()), ";", Integer.toString(getIterationDepth()), ";",
-						Integer.toString(winProbabilityByShashin.getWinProbability(getIterationScore(),
-								getPlayedHalfMovesNumber(iterationFen))),
+						Integer.toString(WinProbabilityByMaterial.getWinProbabilityByScore(getIterationScore(),iterationFen)),
 						";", getAbbreviatePositionType(getCurrentPositionType())));
 		iterationChessMove.setAnnotation(iterationChessMoveAnnotation);
 
@@ -562,11 +543,9 @@ public class ShashChessPlayer {
 	private ChessMove getCastleChessMove(ChessBoard iterationChessBoard, String moveOriginSquareCoordinates,
 			String moveDestinationSquareCoordinates, ChessMove chessMove) throws IllegalMoveException {
 		ChessPiece e1Occupant = iterationChessBoard.getSquare(5, 1).getOccupant();
-		boolean ise1WhiteKing = ((e1Occupant != null) && (e1Occupant.isKing()) && (!e1Occupant.isBlack())) ? true
-				: false;
+		boolean ise1WhiteKing = ((e1Occupant != null) && (e1Occupant.isKing()) && (!e1Occupant.isBlack()));
 		ChessPiece e8Occupant = iterationChessBoard.getSquare(5, 8).getOccupant();
-		boolean ise8BlackKing = ((e8Occupant != null) && (e8Occupant.isKing()) && (e8Occupant.isBlack())) ? true
-				: false;
+		boolean ise8BlackKing = ((e8Occupant != null) && (e8Occupant.isKing()) && (e8Occupant.isBlack()));
 
 		if ((moveOriginSquareCoordinates.equals("e1") && moveDestinationSquareCoordinates.equals("g1") && ise1WhiteKing)
 				|| (moveOriginSquareCoordinates.equals("e8") && moveDestinationSquareCoordinates.equals("g8")
@@ -584,25 +563,25 @@ public class ShashChessPlayer {
 	private void initShashChess() {
 		startShashChess();
 		setInitialUciOptions();
-		String showEngineInfos = getShowEngineInfos();
-		if ((showEngineInfos != null) && (!showEngineInfos.isEmpty()) && (showEngineInfos.equalsIgnoreCase("yes"))) {
+		String showInitEngineInfos = getShowEngineInfos();
+		if ((showInitEngineInfos != null) && (!showInitEngineInfos.isEmpty()) && (showInitEngineInfos.equalsIgnoreCase("yes"))) {
 			retrieveShashChessInfo();
 		}
 	}
 
-	private String doStep(String fen, int step, int moveCounter, boolean isBlackMove) {
+	private String doStep(String fen, int step, boolean isBlackMove) {
 		long currentAverageTimeMSForMove = strongestAverageTimeSecondsForMove * 1000;
 		uci.uciNewGame();
 		uci.positionFen(fen);
-		UCIResponse<Analysis> response = uci.analysis(currentAverageTimeMSForMove,timeoutMS);
+		UCIResponse<Analysis> response = uci.analysis(currentAverageTimeMSForMove, timeoutMS);
 		Analysis analysis = response.getResultOrThrow();
 		Move bestMove = analysis.getBestMove();
-		if(bestMove==null) {
-			UCIResponse<BestMove> bestMoveResponse=uci.bestMove(currentAverageTimeMSForMove);
-			BestMove bestMoveOnly=bestMoveResponse.getResultOrThrow();
-			uci.setOption("LiveBook Proxy Url", "", timeoutMS).getResultOrThrow();
-			uci.setOption("ChessDB Tablebase", "false", timeoutMS).getResultOrThrow();
-			String searchMoves=bestMoveOnly.getCurrent();
+		if (bestMove == null) {
+			UCIResponse<BestMove> bestMoveResponse = uci.bestMove(currentAverageTimeMSForMove);
+			BestMove bestMoveOnly = bestMoveResponse.getResultOrThrow();
+			uci.setOption(LIVE_BOOK_PROXY_URL, "", timeoutMS).getResultOrThrow();
+			uci.setOption(CHESSDB_TABLEBASE, "false", timeoutMS).getResultOrThrow();
+			String searchMoves = bestMoveOnly.getCurrent();
 			String goCommand = (searchMoves != null && !searchMoves.isEmpty())
 					? String.join("", "go movetime %d ", "searchmoves ", searchMoves)
 					: "go movetime %d";
@@ -611,30 +590,31 @@ public class ShashChessPlayer {
 			analysis = response.getResultOrThrow();
 			Map<Integer, Move> moves = analysis.getAllMoves();
 			bestMove = moves.get(1);
-			uci.setOption("LiveBook Proxy Url", livebookProxyUrl, timeoutMS).getResultOrThrow();
-			uci.setOption("ChessDB Tablebase", chessDBTablebase, timeoutMS).getResultOrThrow();
+			uci.setOption(LIVE_BOOK_PROXY_URL, livebookProxyUrl, timeoutMS).getResultOrThrow();
+			uci.setOption(CHESSDB_TABLEBASE, chessDBTablebase, timeoutMS).getResultOrThrow();
 		}
 		String lan = bestMove.getLan();
 		setIterationScore(((Double) (bestMove.getStrength().getScore() * 100)).intValue());
 		setIterationDepth(bestMove.getDepth());
-		setCurrentPositionType(getPositionType(iterationScore, semiMoveNumber));
+		setCurrentPositionType(getPositionType(iterationScore, fen));
 		if (step == 2) {
 			setMoveCounter(
 					(((semiMoveNumber + 2) % 2 != 0) ? (int) Math.floor((double) (semiMoveNumber + 2) / (double) 2)
 							: ((semiMoveNumber + 2) / 2)));
-			System.out.println(String.join("",
+			String notationMsg = String.join("",
 					(String.join("", Integer.toString(this.moveCounter), isBlackMove ? "...." : ".")),
 					bestMove.getLan(), " ", String.join("", Integer.toString(iterationScore), ";"),
 					String.join("", Integer.toString(iterationDepth), ";",
-							Integer.toString(winProbabilityByShashin.getWinProbability(iterationScore, semiMoveNumber)),
+							Integer.toString(WinProbabilityByMaterial.getWinProbabilityByScore(iterationScore, fen)),
 							";"),
-					getAbbreviatePositionType(getCurrentPositionType())));
+					getAbbreviatePositionType(getCurrentPositionType()));
+			logger.info(notationMsg);
 		}
 		return lan;
 	}
 
 	private String getAbbreviatePositionType(String positionType) {
-		return String.join("", "s-", WinProbabilityByShashin.getAbbreviateRangeDescription(positionType));
+		return String.join("", "s-", WinProbabilityByMaterial.getAbbreviateRangeDescription(positionType));
 	}
 
 	private void setShashinUciOptions(String positionType) {
@@ -646,47 +626,49 @@ public class ShashChessPlayer {
 				break;
 			}
 		}
-		switch (rangeDescription) {
-		case HIGH_PETROSIAN:
-		case MIDDLE_PETROSIAN:
-		case LOW_PETROSIAN:
-		case CAPABLANCA:
-		case LOW_TAL:
-		case MIDDLE_TAL:
-		case HIGH_TAL:
-			uci.setOption(rangeDescription.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case HIGH_MIDDLE_PETROSIAN:
-			uci.setOption(RangeDescription.HIGH_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.MIDDLE_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case MIDDLE_LOW_PETROSIAN:
-			uci.setOption(RangeDescription.MIDDLE_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.LOW_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case CAOS_PETROSIAN_CAPABLANCA:
-			uci.setOption(RangeDescription.LOW_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.CAPABLANCA.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case CAOS_TAL_CAPABLANCA:
-			uci.setOption(RangeDescription.CAPABLANCA.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.LOW_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case LOW_MIDDLE_TAL:
-			uci.setOption(RangeDescription.LOW_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.MIDDLE_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case MIDDLE_HIGH_TAL:
-			uci.setOption(RangeDescription.MIDDLE_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			uci.setOption(RangeDescription.HIGH_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
-			break;
-		case CAOS_TAL_CAPABLANCA_PETROSIAN:
-			setAllPersonalities();
-			break;
-		default:
-			break;
+		if(rangeDescription!=null) {
+			switch (rangeDescription) {
+			case HIGH_PETROSIAN:
+			case MIDDLE_PETROSIAN:
+			case LOW_PETROSIAN:
+			case CAPABLANCA:
+			case LOW_TAL:
+			case MIDDLE_TAL:
+			case HIGH_TAL:
+				uci.setOption(rangeDescription.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case HIGH_MIDDLE_PETROSIAN:
+				uci.setOption(RangeDescription.HIGH_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.MIDDLE_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case MIDDLE_LOW_PETROSIAN:
+				uci.setOption(RangeDescription.MIDDLE_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.LOW_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case CAOS_PETROSIAN_CAPABLANCA:
+				uci.setOption(RangeDescription.LOW_PETROSIAN.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.CAPABLANCA.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case CAOS_TAL_CAPABLANCA:
+				uci.setOption(RangeDescription.CAPABLANCA.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.LOW_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case LOW_MIDDLE_TAL:
+				uci.setOption(RangeDescription.LOW_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.MIDDLE_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case MIDDLE_HIGH_TAL:
+				uci.setOption(RangeDescription.MIDDLE_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				uci.setOption(RangeDescription.HIGH_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
+				break;
+			case CAOS_TAL_CAPABLANCA_PETROSIAN:
+				setAllPersonalities();
+				break;
+			default:
+				break;
+			}
+			
 		}
-
 	}
 
 	private void setAllPersonalities() {
@@ -700,11 +682,10 @@ public class ShashChessPlayer {
 		uci.setOption(RangeDescription.HIGH_TAL.getDescription(), "true", timeoutMS).getResultOrThrow();
 	}
 
-	private String getPositionType(int score, int ply) {
-		WinProbabilityByShashin winProbabilityByShashin = new WinProbabilityByShashin();
-		int winProbability = winProbabilityByShashin.getWinProbability(score, ply);
-		int range = winProbabilityByShashin.getRange(winProbability);
-		return winProbabilityByShashin.getRangeDescription(range);
+	private String getPositionType(int score, String fen) {
+		int winProbability = WinProbabilityByMaterial.getWinProbabilityByScore(score, fen);
+		int range = WinProbabilityByMaterial.getRange(winProbability);
+		return WinProbabilityByMaterial.getRangeDescription(range);
 	}
 
 	private void setInitialUciOptions() {
@@ -717,18 +698,18 @@ public class ShashChessPlayer {
 			uci.setOption("Variety", variety, timeoutMS).getResultOrThrow();
 			uci.setOption("Persisted learning", persistedLearning, timeoutMS).getResultOrThrow();
 			uci.setOption("Read only learning", readOnlyLearning, timeoutMS).getResultOrThrow();
-			if(livebookProxyUrl!=null) {
-				uci.setOption("LiveBook Proxy Url", livebookProxyUrl, timeoutMS).getResultOrThrow();
+			if (livebookProxyUrl != null) {
+				uci.setOption(LIVE_BOOK_PROXY_URL, livebookProxyUrl, timeoutMS).getResultOrThrow();
 			}
-			if(chessDBTablebase!=null) {
-				uci.setOption("ChessDB Tablebase", chessDBTablebase, timeoutMS).getResultOrThrow();
+			if (chessDBTablebase != null) {
+				uci.setOption(CHESSDB_TABLEBASE, chessDBTablebase, timeoutMS).getResultOrThrow();
 			}
 			uci.setOption("MCTS", mcts, timeoutMS).getResultOrThrow();
 			uci.setOption("MCTSThreads", mCTSThreads, timeoutMS).getResultOrThrow();
 		} catch (Exception e) {
 			closeWrite();
 			closeShashChess();
-			System.out.println("Impossible to setup uci options");
+			logger.info("Impossible to setup uci options");
 			System.exit(0);
 		}
 	}
@@ -740,14 +721,15 @@ public class ShashChessPlayer {
 
 			// Engine name
 			EngineInfo engineInfo = response.getResult();
-			System.out.println(String.join("", "Engine name:" + engineInfo.getName()));
+			String engineNameMsg = String.join("", "Engine name:" + engineInfo.getName());
+			logger.info(engineNameMsg);
 
 			// Supported engine options
-			System.out.println("Supported engine options:");
+			logger.info("Supported engine options:");
 			Map<String, EngineOption> engineOptions = engineInfo.getOptions();
 			engineOptions.forEach((key, value) -> {
-				System.out.println(String.join("", "\t", key));
-				System.out.println(String.join("", "\t\t", value.toString()));
+				logger.info(String.join("", "\t", key));
+				logger.info(String.join("", "\t\t", value.toString()));
 			});
 		}
 	}
@@ -766,15 +748,14 @@ public class ShashChessPlayer {
 			}
 
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logger.info(e.getMessage());
 		}
 	}
 
 	private void setPgnWriter() throws IOException {
-		String appendGame = getAppendGame();
+		String appendGamePgn = getAppendGame();
 		pw = new PrintWriter(new FileWriter(getPgnOutputFileName(),
-				((appendGame != null) && (appendGame.equalsIgnoreCase("Yes"))) ? true : false));
+				((appendGamePgn != null) && (appendGamePgn.equalsIgnoreCase("Yes")))));
 		pgnWriter = new PGNWriter(pw);
 	}
 

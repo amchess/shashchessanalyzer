@@ -57,7 +57,6 @@ public class SacrificesFinder {
 	private String searchMoves;
 	private String showEngineInfos;
 	private String psychological;
-	private WinProbabilityByShashin winProbabilityByShashin = new WinProbabilityByShashin();
 	private static Logger logger = Logger.getLogger(SacrificesFinder.class.getName());
 
 	public SacrificesFinder(String sacrificesFinderPropertiesPath,String fen) {
@@ -121,7 +120,7 @@ public class SacrificesFinder {
 			}
 			int threshold=sacrificesFinder.getPsychological().trim().equalsIgnoreCase("yes")?PSYCHOLOGICAL_THRESHOLD:REAL_THRESHOLD;
 			List<MoveRangeWinProbability> movesRanges = sacrificesFinder.getSacrifices(sacrificesFinder.getFen(),threshold);
-			printSacrifices(sacrificesFinder, movesRanges);
+			printSacrifices(movesRanges);
 			sacrificesFinder.closeEngine();
 		} catch (Exception e) {
 			sacrificesFinder.closeEngine();
@@ -130,12 +129,11 @@ public class SacrificesFinder {
 		}
 	}
 
-	private static void printSacrifices(SacrificesFinder sacrificesFinder,
-			List<MoveRangeWinProbability> movesRanges) {
+	private static void printSacrifices(List<MoveRangeWinProbability> movesRanges) {
 		if(!movesRanges.isEmpty()) {
 			logger.info("Sacrifices:Shashin position type;Win Probability");
 			for (MoveRangeWinProbability moveRange : movesRanges) {
-				String message=moveRange.getMove() + ": " + sacrificesFinder.getWinProbabilityByShashin().getRangeDescription(moveRange.getRange())+";"+moveRange.getWinProbability();
+				String message=moveRange.getMove() + ": " + WinProbabilityByMaterial.getRangeDescription(moveRange.getRange())+";"+moveRange.getWinProbability();
 				logger.info(message);
 			}
 		}
@@ -150,7 +148,7 @@ public class SacrificesFinder {
 			currentChessBoard.loadFromFen(fenToAnalyze);
 			if (!currentChessBoard.isStaleMate() && !currentChessBoard.isMated()) {
 				int initialWinProbability=getWinProbability("", fenToAnalyze);
-				int initialRange=winProbabilityByShashin.getRange(initialWinProbability);
+				int initialRange=WinProbabilityByMaterial.getRange(initialWinProbability);
 				float sideToMoveCurrentMaterialDifference = getSideToMoveMaterialDifference(currentChessBoardICTK);
 				List<com.github.bhlangonijr.chesslib.move.Move> legalMoves = currentChessBoard.legalMoves();
 				message = "Analysing " + legalMoves.size() + " moves";
@@ -164,7 +162,7 @@ public class SacrificesFinder {
 					message="Analysing legal move: " + currentLegalMoveSan;
 					logger.info(message);
 					int currentWinProbability=getWinProbability(currentLegalMoveSan, fenToAnalyze);
-					int currentRange=winProbabilityByShashin.getRange(currentWinProbability);
+					int currentRange=WinProbabilityByMaterial.getRange(currentWinProbability);
 					if (isSacrifice(currentLegalMove, currentChessBoard, sideToMoveCurrentMaterialDifference,
 							currentChessBoardICTK.isBlackMove())
 							&& (Math.abs(currentRange - initialRange) <= threshold)) {
@@ -207,8 +205,7 @@ public class SacrificesFinder {
 		}
 		if (bestMove != null) {
 			int score = ((Double) (bestMove.getStrength().getScore() * 100)).intValue();
-			int playedHalfMovesNumber = getPlayedHalfMovesNumber(currentFen);
-			return winProbabilityByShashin.getWinProbability(score, playedHalfMovesNumber);
+			return WinProbabilityByMaterial.getWinProbabilityByScore(score, currentFen);
 		} else {
 			return 0;
 		}
@@ -316,22 +313,6 @@ public class SacrificesFinder {
 		return chessBoard.isBlackMove() ? (blackMaterial - whiteMaterial) : (whiteMaterial - blackMaterial);
 	}
 
-	private int getPlayedHalfMovesNumber(String fen) {
-		int playedHalfMovesNumber = -1;
-		String[] fenParts = fen.split("\\s+");
-		// The half-move number is the fifth element in the FEN string
-		String movesNumberStr = fenParts[5];
-		String color = fenParts[1];
-		try {
-			int movesNumber = Integer.parseInt(movesNumberStr);
-			playedHalfMovesNumber = color.equals("w") ? (int) ((movesNumber - 1) / 2) : ((movesNumber - 1) / 2) + 1;
-		} catch (NumberFormatException e) {
-			// Handle the case where the half-move number is not a valid integer
-			logger.info("Invalid half-move number in FEN: " + movesNumberStr);
-			return playedHalfMovesNumber;
-		}
-		return playedHalfMovesNumber;
-	}
 
 	private void setInitialUciOptions() {
 		try {
@@ -553,13 +534,6 @@ public class SacrificesFinder {
 		this.showEngineInfos = showEngineInfos;
 	}
 
-	public WinProbabilityByShashin getWinProbabilityByShashin() {
-		return winProbabilityByShashin;
-	}
-
-	public void setWinProbabilityByShashin(WinProbabilityByShashin winProbabilityByShashin) {
-		this.winProbabilityByShashin = winProbabilityByShashin;
-	}
 
 	public String getPsychological() {
 		return psychological;
