@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Logger;
 
+import com.alphachess.shashchessanalyzer.WinProbabilityByMaterial;
 import com.alphachess.shashchessanalyzer.WinProbabilityByMaterial.RangeDescription;
 
 import net.andreinc.neatchess.client.UCI;

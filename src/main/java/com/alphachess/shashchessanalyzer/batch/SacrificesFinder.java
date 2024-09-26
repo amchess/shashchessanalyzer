@@ -1,4 +1,4 @@
-package com.alphachess.shashchessanalyzer;
+package com.alphachess.shashchessanalyzer.batch;
 
 import static java.lang.String.format;
 import static net.andreinc.neatchess.client.breaks.Break.breakOn;
@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Logger;
 
+import com.alphachess.shashchessanalyzer.MoveRangeWinProbability;
+import com.alphachess.shashchessanalyzer.WinProbabilityByMaterial;
 import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.Piece;
 
