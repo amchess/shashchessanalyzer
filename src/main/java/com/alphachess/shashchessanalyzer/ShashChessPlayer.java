@@ -340,7 +340,7 @@ public class ShashChessPlayer {
 		} catch (IOException e) {
 			logger.info(e.getMessage());
 		}
-		int winProbability = WinProbabilityByMaterial.getWinProbabilityByScore(finalScore, finalFen);
+		int winProbability = WinProbabilityByMaterial.getWinProbabilityFromScore(finalScore, finalFen);
 		int rangeValue = WinProbabilityByMaterial.getRange(winProbability);
 		ChessResult gameResult = new ChessResult(Result.UNDECIDED);
 
@@ -453,7 +453,7 @@ public class ShashChessPlayer {
 		iterationFen = new FEN().boardToString(iterationChessBoard);
 		iterationChessMoveAnnotation.setComment(
 				String.join("", Integer.toString(getIterationScore()), ";", Integer.toString(getIterationDepth()), ";",
-						Integer.toString(WinProbabilityByMaterial.getWinProbabilityByScore(getIterationScore(),iterationFen)),
+						Integer.toString(WinProbabilityByMaterial.getWinProbabilityFromScore(getIterationScore(),iterationFen)),
 						";", getAbbreviatePositionType(getCurrentPositionType())));
 		iterationChessMove.setAnnotation(iterationChessMoveAnnotation);
 
@@ -605,7 +605,7 @@ public class ShashChessPlayer {
 					(String.join("", Integer.toString(this.moveCounter), isBlackMove ? "...." : ".")),
 					bestMove.getLan(), " ", String.join("", Integer.toString(iterationScore), ";"),
 					String.join("", Integer.toString(iterationDepth), ";",
-							Integer.toString(WinProbabilityByMaterial.getWinProbabilityByScore(iterationScore, fen)),
+							Integer.toString(WinProbabilityByMaterial.getWinProbabilityFromScore(iterationScore, fen)),
 							";"),
 					getAbbreviatePositionType(getCurrentPositionType()));
 			logger.info(notationMsg);
@@ -683,7 +683,7 @@ public class ShashChessPlayer {
 	}
 
 	private String getPositionType(int score, String fen) {
-		int winProbability = WinProbabilityByMaterial.getWinProbabilityByScore(score, fen);
+		int winProbability = WinProbabilityByMaterial.getWinProbabilityFromScore(score, fen);
 		int range = WinProbabilityByMaterial.getRange(winProbability);
 		return WinProbabilityByMaterial.getRangeDescription(range);
 	}

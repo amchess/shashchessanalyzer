@@ -144,7 +144,7 @@ public class ShashChessAnalyzer {
 		String positionType = getPositionType(score, fen);
 		String positionTypeMsg = String.join("", "Position type: ", positionType);
 		logger.info(positionTypeMsg);
-		String winProbability = Integer.toString(WinProbabilityByMaterial.getWinProbabilityByScore(score, fen));
+		String winProbability = Integer.toString(WinProbabilityByMaterial.getWinProbabilityFromScore(score, fen));
 		String winProbabilityMsg = String.join("", "Win Probability: ", winProbability);
 		logger.info(winProbabilityMsg);
 
@@ -225,7 +225,7 @@ public class ShashChessAnalyzer {
 	}
 
 	private String getPositionType(int score, String fen) {
-		int winProbability = WinProbabilityByMaterial.getWinProbabilityByScore(score, fen);
+		int winProbability = WinProbabilityByMaterial.getWinProbabilityFromScore(score, fen);
 		int range = WinProbabilityByMaterial.getRange(winProbability);
 		return WinProbabilityByMaterial.getRangeDescription(range);
 	}

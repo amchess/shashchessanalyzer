@@ -40,7 +40,7 @@ public class MoveInfo {
 		this.chessMove = chessMove;
 		this.score = ((Double) (move.getStrength().getScore() * 100)).intValue();
 		this.depth = move.getDepth();
-		int winProbability=WinProbabilityByMaterial.getWinProbabilityByScore(score, new FEN().boardToString(chessMove.getBoard()));
+		int winProbability=WinProbabilityByMaterial.getWinProbabilityFromScore(score, new FEN().boardToString(chessMove.getBoard()));
 		int rangeValue=WinProbabilityByMaterial.getRange(winProbability);
 		this.positionType = WinProbabilityByMaterial.getRangeDescription(rangeValue);
 	}

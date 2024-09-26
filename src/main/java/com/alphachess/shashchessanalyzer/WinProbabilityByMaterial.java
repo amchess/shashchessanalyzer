@@ -1,7 +1,6 @@
 package com.alphachess.shashchessanalyzer;
 
 import java.io.IOException;
-import java.util.logging.Logger;
 
 import ictk.boardgame.chess.ChessBoard;
 import ictk.boardgame.chess.ChessPiece;
@@ -13,7 +12,6 @@ public class WinProbabilityByMaterial {
 	public static final int NORMALIZE_TO_PAWN_VALUE = 356;
 	static final double[] as = { -37.45051876, 121.19101539, -132.78783573, 420.70576692 };
 	static final double[] bs = { 90.26261072, -137.26549898, 71.10130540, 51.35259597 };
-	private static final Logger logger = Logger.getLogger(WinProbabilityByMaterial.class.getName());
 
 	public enum RangeDescription 
 	{
@@ -96,15 +94,6 @@ public class WinProbabilityByMaterial {
 		}
 	}
 
-	public static void main(String[] args) {
-		String fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-		int totalMaterial = getTotalMaterial(fen);
-		String msgMaterial = "Total material:" + totalMaterial;
-		logger.info(msgMaterial);
-		String msgWinProbability = "Win probability:" + getWinProbability(25, totalMaterial);
-		logger.info(msgWinProbability);
-	}
-
 	// Function to calculate win rate parameters
 	static WinRateParams winRateParams(int materialClamp) {
 		double m = materialClamp / 58.0;
@@ -132,18 +121,26 @@ public class WinProbabilityByMaterial {
 	}
 
 	// Function to get win probability
-	public static byte getWinProbability(int score, int materialClamp) {
+	private static byte getWinProbabilityFromScore(int score, int material) {
+		int materialClamp = Math.max(17, Math.min(material, 78));
 		WinRateParams params = winRateParams(materialClamp);
 		double a = params.a;
 		double b = params.b;
-		long valueClamp = (long) (score * a / 100);
+		int value = (int)((double)score * a / 100);
+		int valueClamp = Math.max(-4000, Math.min(value, 4000));
 		double wdlW = 0.5 + 1000 / (1 + Math.exp((a - valueClamp) / b));
 		double wdlL = 0.5 + 1000 / (1 + Math.exp((a - (-valueClamp)) / b));
 		double wdlD = 1000 - wdlW - wdlL;
 		return (byte) Math.round((wdlW + wdlD / 2.0) / 10.0);
 	}
 
-	public static byte getWinProbabilityFromValue(int valueClamp, int materialClamp) {
+	public static int getWinProbabilityFromValue(int value, String fen) {
+		return getWinProbabilityFromValue(value, getTotalMaterial(fen));
+	}
+	
+	private static byte getWinProbabilityFromValue(int value, int material) {
+		int materialClamp = Math.max(17, Math.min(material, 78));
+		int valueClamp = Math.max(-4000, Math.min(value, 4000));
 		WinRateParams params = winRateParams(materialClamp);
 		double a = params.a;
 		double b = params.b;
@@ -153,9 +150,8 @@ public class WinProbabilityByMaterial {
 		return (byte) Math.round((wdlW + wdlD / 2.0) / 10.0);
 	}
 
-	public static int getWinProbabilityByScore(int score, String fen) {
-		int materialClamp = Math.max(17, Math.min(getTotalMaterial(fen), 78));
-		return getWinProbability(score, materialClamp);
+	public static int getWinProbabilityFromScore(int score, String fen) {
+		return getWinProbabilityFromScore(score, getTotalMaterial(fen));
 	}
 
 	public static int getTotalMaterial(String fen) {

@@ -205,7 +205,7 @@ public class SacrificesFinder {
 		}
 		if (bestMove != null) {
 			int score = ((Double) (bestMove.getStrength().getScore() * 100)).intValue();
-			return WinProbabilityByMaterial.getWinProbabilityByScore(score, currentFen);
+			return WinProbabilityByMaterial.getWinProbabilityFromScore(score, currentFen);
 		} else {
 			return 0;
 		}
